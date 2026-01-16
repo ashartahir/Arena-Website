@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Gaming Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a0a2e 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .btn-logout {
+            padding: 12px 24px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-logout:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        .btn-delete-ad {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-delete-ad:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        /* Lobby Page */
+        .lobby-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 50px 20px;
+        }
+
+        .lobby-card {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 60px;
+            border-radius: 20px;
+            text-align: center;
+            border: 2px solid rgba(145, 36, 255, 0.5);
+            margin-bottom: 30px;
+        }
+
+        .lobby-icon {
+            font-size: 100px;
+            margin-bottom: 30px;
+        }
+
+        .lobby-title {
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #9124FF, #FF6682);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .lobby-subtitle {
+            font-size: 20px;
+            color: #aaa;
+            margin-bottom: 40px;
+        }
+
+        .btn-find-match {
+            padding: 24px 60px;
+            background: linear-gradient(135deg, #9124FF, #FF6682);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-find-match:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(145, 36, 255, 0.5);
+        }
+
+        .searching-text {
+            font-size: 32px;
+            margin-bottom: 30px;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .btn-cancel {
+            padding: 16px 40px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        /* Game Page */
+        .game-header {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 25px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .players-display {
+            display: flex;
+            align-items: center;
+            gap: 40px;
+            font-size: 24px;
+        }
+
+        .player-score {
+            text-align: center;
+        }
+
+        .player-label {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .player-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #ffd93d;
+        }
+
+        .vs-divider {
+            font-size: 40px;
+        }
+
+        .game-timer {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ffd93d;
+        }
+
+        .game-content {
+            padding: 30px;
+            display: flex;
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .ad-banner-side {
+            width: 220px;
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a8a0 100%);
+            padding: 25px;
+            border-radius: 15px;
+            color: black;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .game-area {
+            flex: 1;
+        }
+
+        .game-canvas {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            height: 600px;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+            border: 3px solid rgba(145, 36, 255, 0.5);
+            cursor: crosshair;
+        }
+
+        .player-character {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: #ffd93d;
+            border-radius: 50%;
+            border: 4px solid white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            transition: all 0.1s;
+            box-shadow: 0 4px 15px rgba(255, 217, 61, 0.6);
+            z-index: 10;
+        }
+
+        .target {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            border-radius: 50%;
+            border: 4px solid white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            animation: float 2s ease-in-out infinite;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.8);
+            transition: transform 0.2s;
+        }
+
+        .target:hover {
+            transform: scale(1.2);
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .game-instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .game-over-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .winner-icon {
+            font-size: 120px;
+            margin-bottom: 30px;
+        }
+
+        .winner-text {
+            font-size: 56px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .final-score {
+            font-size: 36px;
+            color: #ffd93d;
+            margin-bottom: 40px;
+        }
+
+        .btn-return {
+            padding: 20px 50px;
+            background: linear-gradient(135deg, #9124FF, #FF6682);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        /* Spectator Page */
+        .spectator-content {
+            padding: 30px;
+            display: flex;
+            gap: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .matches-sidebar {
+            width: 350px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid rgba(145, 36, 255, 0.5);
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .matches-title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .match-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .match-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .match-item.active {
+            background: linear-gradient(135deg, #9124FF, #FF6682);
+            border-color: #ffd93d;
+        }
+
+        .match-players {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .match-score {
+            font-size: 20px;
+            color: #ffd93d;
+            margin-bottom: 5px;
+        }
+
+        .match-time {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .spectate-area {
+            flex: 1;
+        }
+
+        .empty-spectate {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 100px;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .empty-icon {
+            font-size: 120px;
+            margin-bottom: 30px;
+            opacity: 0.6;
+        }
+
+        /* Advertiser Page */
+        .advertiser-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 15px;
+            border: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .card h2 {
+            font-size: 28px;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #9124FF;
+        }
+
+        .btn-create {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #9124FF, #FF6682);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(145, 36, 255, 0.5);
+        }
+
+        .ad-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .ad-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+
+        .ad-item:hover {
+            border-color: #9124FF;
+            transform: translateY(-2px);
+        }
+
+        .ad-item-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .ad-item-info {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .ad-banner-top {
+            background: linear-gradient(135deg, #ffd93d 0%, #ffb800 100%);
+            padding: 18px;
+            text-align: center;
+            color: black;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .ad-banner-top a {
+            color: #c0392b;
+            text-decoration: none;
+        }
+
+        .ad-banner-top a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 1200px) {
+            .advertiser-content {
+                grid-template-columns: 1fr;
+            }
+
+            .game-content,
+            .spectator-content {
+                flex-direction: column;
+            }
+
+            .matches-sidebar,
+            .ad-banner-side {
+                width: 100%;
+            }
+        }
+
+        .tournament-card {
+            border: 2px solid #ffd93d;
+            /* golden highlight for tournaments */
+        }
+
+        .tournament-card .lobby-title {
+            background: linear-gradient(45deg, #FFD93D, #FFB800);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tournament-card .btn-find-match {
+            background: linear-gradient(135deg, #FFD93D, #FFB800);
+        }
+
+        .tournament-card .btn-find-match:hover {
+            box-shadow: 0 10px 30px rgba(255, 217, 61, 0.6);
+            transform: translateY(-3px);
+        }
+
+        /* Tournament Section for Spectators - Bottom Layout */
+        .spectator-bottom-section {
+            padding: 30px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .bottom-cards-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .bottom-card {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 15px;
+            border: 2px solid rgba(145, 36, 255, 0.5);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .bottom-card-title {
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid rgba(145, 36, 255, 0.5);
+        }
+
+        .tournament-item {
+            background: rgba(255, 217, 61, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255, 217, 61, 0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tournament-item:hover {
+            border-color: #ffd93d;
+            transform: translateY(-2px);
+        }
+
+        .tournament-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .tournament-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffd93d;
+        }
+
+        .tournament-status {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .tournament-status.live {
+            background: #e74c3c;
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        .tournament-status.upcoming {
+            background: #3498db;
+            color: white;
+        }
+
+        .tournament-info {
+            font-size: 14px;
+            color: #aaa;
+            margin: 5px 0;
+        }
+
+        .btn-watch {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px;
+            background: linear-gradient(135deg, #ffd93d, #ffb800);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-watch:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-watch:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .match-item-bottom {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .match-item-bottom:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .match-item-bottom.active {
+            background: linear-gradient(135deg, #9124FF, #FF6682);
+            border-color: #ffd93d;
+        }
+
+        @media (max-width: 1200px) {
+            .bottom-cards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <!-- Lobby Page -->
+    <div id="lobbyPage" class="page">
+        <div class="header">
+            <div class="header-title">
+                <span>Player: <span id="lobbyUsername"></span></span>
+            </div>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </div>
+
+        <div id="lobbyAdTop" class="ad-banner-top" style="display: none;">
+            AD: <a id="lobbyAdTopLink" href="#" target="_blank"><span id="lobbyAdTopText"></span> - Click Here!</a>
+        </div>
+
+        <div class="lobby-container">
+            <div class="lobby-card">
+                <div class="lobby-icon">🏆</div>
+                <div class="lobby-title">Ready to Battle?</div>
+                <div class="lobby-subtitle">Find an opponent and compete in real-time!</div>
+
+                <div id="matchmakingBtn">
+                    <button class="btn-find-match" onclick="startTargetGame()">🎯 Target Game</button>
+                    <button class="btn-find-match" onclick="startBoxGame()">🟦 Box Game</button>
+                </div>
+
+                <div id="searchingState" style="display: none;">
+                    <div class="searching-text">🔍 Searching for opponent...</div>
+                    <button class="btn-cancel" onclick="cancelSearch()">Cancel Search</button>
+                </div>
+            </div>
+            <div class="lobby-card tournament-card">
+                <div class="lobby-icon">🏆</div>
+                <div class="lobby-title">Tournaments</div>
+                <div class="lobby-subtitle">Register for tournaments or view upcoming events!</div>
+                <button class="btn-find-match" onclick="goToTournamentRegistration()">📝 Tournament
+                    Registration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Page -->
+    <div id="gamePage" class="page">
+        <div class="game-header">
+            <div class="players-display">
+                <div class="player-score">
+                    <div class="player-label">You</div>
+                    <div class="player-name"><span id="gameYourName"></span>: <span id="gameYourScore">0</span></div>
+                </div>
+                <div class="vs-divider">⚔️</div>
+                <div class="player-score">
+                    <div class="player-label">Opponent</div>
+                    <div class="player-name"><span id="gameOppName"></span>: <span id="gameOppScore">0</span></div>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="game-timer">⏱️ <span id="gameTimer">60</span>s</div>
+                <button class="btn-logout" onclick="quitGame()">Quit</button>
+            </div>
+        </div>
+
+        <div id="gameAdTop" class="ad-banner-top" style="display: none;">
+            🎯 AD: <a id="gameAdTopLink" href="#" target="_blank"><span id="gameAdTopText"></span> - Click Here!</a>
+        </div>
+
+        <div class="game-content">
+            <div id="gameAdSide" class="ad-banner-side" style="display: none;">
+                <div style="font-size: 60px; margin-bottom: 15px;">📱</div>
+                <a id="gameAdSideLink" href="#" target="_blank"
+                    style="color: black; font-weight: bold; text-decoration: none;">
+                    <div id="gameAdSideText" style="font-size: 18px;"></div>
+                </a>
+            </div>
+
+            <div class="game-area">
+                <div class="game-canvas" id="gameCanvas">
+                    <div id="playerChar" class="player-character">😊</div>
+
+                    <div class="game-instructions">
+                        🖱️ Move mouse to control<br>
+                        🎯 Click targets to score
+                    </div>
+
+                    <div id="gameOverOverlay" class="game-over-overlay" style="display: none;">
+                        <div class="winner-icon" id="winnerIcon">🏆</div>
+                        <div class="winner-text" id="winnerText">You Win!</div>
+                        <div class="final-score">
+                            Final Score: <span id="finalYourScore">0</span><br>
+                            Opponent: <span id="finalOppScore">0</span>
+                        </div>
+                        <button class="btn-return" onclick="returnToLobby()">Return to Lobby</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spectator Page -->
+    <div id="spectatorPage" class="page">
+        <div class="header">
+            <div class="header-title">
+                <span>👁️ Spectator: <span id="spectatorUsername"></span></span>
+            </div>
+            <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+        </div>
+
+        <div id="spectatorAdTop" class="ad-banner-top" style="display: none;">
+            🎯 AD: <a id="spectatorAdTopLink" href="#" target="_blank"><span id="spectatorAdTopText"></span> - Click
+                Here!</a>
+        </div>
+
+        <div class="spectator-content">
+            <!-- Side Ad Banner (Left Side) -->
+            <div id="spectatorAdSide" class="ad-banner-side" style="display: none;">
+                <div style="font-size: 60px; margin-bottom: 15px;">📱</div>
+                <a id="spectatorAdSideLink" href="#" target="_blank"
+                    style="color: black; font-weight: bold; text-decoration: none;">
+                    <div id="spectatorAdSideText" style="font-size: 18px;"></div>
+                </a>
+                <div style="margin-top: 12px; font-size: 13px;">Click to learn more!</div>
+            </div>
+
+            <!-- Main Spectate Area -->
+            <div class="spectate-area">
+                <div id="spectateEmpty" class="empty-spectate">
+                    <div class="empty-icon">👁️</div>
+                    <div style="font-size: 32px; margin-bottom: 15px;">No Match Selected</div>
+                    <div style="font-size: 18px; color: #aaa;">Select a live match or tournament from below to start
+                        spectating</div>
+                </div>
+
+                <div id="spectateActive" style="display: none;">
+                    <div class="game-header" style="margin-bottom: 30px;">
+                        <div class="players-display">
+                            <div class="player-score">
+                                <div class="player-label">Player 1</div>
+                                <div class="player-name"><span id="specPlayer1Name"></span>: <span
+                                        id="specPlayer1Score">0</span></div>
+                            </div>
+                            <div class="vs-divider">⚔️</div>
+                            <div class="player-score">
+                                <div class="player-label">Player 2</div>
+                                <div class="player-name"><span id="specPlayer2Name"></span>: <span
+                                        id="specPlayer2Score">0</span></div>
+                            </div>
+                        </div>
+                        <div class="game-timer">⏱️ <span id="specTimer">60</span>s</div>
+                    </div>
+
+                    <div class="game-canvas"
+                        style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                        <div style="font-size: 100px; margin-bottom: 30px;">🎮</div>
+                        <div style="font-size: 32px; margin-bottom: 15px;">Live Match View</div>
+                        <div style="font-size: 20px; color: #aaa;">Watching <span id="specWatchingNames"></span> play!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Section: Live Matches & Tournaments -->
+        <div class="spectator-bottom-section">
+            <div class="bottom-cards-grid">
+                <!-- Live Matches Card -->
+                <div class="bottom-card">
+                    <div class="bottom-card-title">🎮 Live Matches</div>
+                    <div id="matchesListBottom">
+                        <div style="text-align: center; color: #aaa; padding: 40px 20px;">
+                            No active matches
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tournaments Card -->
+                <div class="bottom-card">
+                    <div class="bottom-card-title">🏆 Tournaments</div>
+                    <div id="tournamentsListBottom"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advertiser Page -->
+    <div id="advertiserPage" class="page">
+        <div class="header">
+            <div class="header-title">
+                <span>📊 Administrator: <span id="advertiserUsername"></span></span>
+            </div>
+            <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+        </div>
+
+        <div class="advertiser-content">
+            <div class="card">
+                <h2>📝 Create New Ad</h2>
+                <div class="form-group">
+                    <label>Ad Title</label>
+                    <input type="text" id="adTitle" placeholder="e.g., Amazing Product Sale!">
+                </div>
+                <div class="form-group">
+                    <label>Target URL</label>
+                    <input type="url" id="adUrl" placeholder="https://example.com">
+                </div>
+                <div class="form-group">
+                    <label>Ad Zone</label>
+                    <select id="adZone">
+                        <option value="top">Top Banner (Horizontal)</option>
+                        <option value="side">Side Banner (Vertical)</option>
+                    </select>
+                </div>
+                <button class="btn-create" onclick="createAd()">Create Ad Campaign</button>
+            </div>
+
+            <div class="card">
+                <h2>📋 Your Active Ads</h2>
+                <div id="adsList" class="ad-list">
+                    <div style="text-align: center; color: #aaa; padding: 40px 20px;">
+                        No ads created yet. Create your first Ads!
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log('Dashboard loaded');
+        const session = JSON.parse(localStorage.getItem('session') || '{}');
+        console.log('Session:', session);
+
+        if (!session.user) {
+            document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
+        }
+
+
+
+        /* ================= GLOBAL CONSTANTS ================= */
+        const SESSION_DURATION = 30 * 60 * 1000; // 30 min session
+
+        /* ================= DOM READY ================= */
+        window.addEventListener('DOMContentLoaded', () => {
+            initializePage();
+            setupActivityListener();
+        });
+
+        /* ================= SESSION HANDLING ================= */
+        function setupActivityListener() {
+            ['click', 'mousemove', 'keydown'].forEach(evt => {
+                document.addEventListener(evt, refreshSession);
+            });
+        }
+
+        function refreshSession() {
+            const session = JSON.parse(localStorage.getItem('session') || '{}');
+            if (!session.user) return;
+            session.expiresAt = Date.now() + SESSION_DURATION;
+            localStorage.setItem('session', JSON.stringify(session));
+        }
+
+        function checkSession() {
+            const session = JSON.parse(localStorage.getItem('session') || '{}');
+            if (!session.user || Date.now() > session.expiresAt) {
+                localStorage.clear();
+                window.location.href = 'index.html';
+                return false;
+            }
+            return true;
+        }
+
+        /* ================= GLOBAL STATE ================= */
+        let currentUser = localStorage.getItem('currentUser');
+        let currentRole = localStorage.getItem('currentRole');
+        let matchId = null;
+        let opponentName = '';
+        let gameActive = false;
+        let score = 0;
+        let opponentScore = 0;
+        let gameTime = 60;
+        let gameInterval = null;
+        let updateInterval = null;
+        let searchInterval = null;
+        let spectateInterval = null;
+        let isPlayer1 = false;
+
+        /* ================= PAGE CONTROL ================= */
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const el = document.getElementById(id);
+            if (el) el.classList.add('active');
+        }
+
+        /* ================= LOGOUT ================= */
+        function logout() {
+            clearInterval(gameInterval);
+            clearInterval(updateInterval);
+            clearInterval(searchInterval);
+            clearInterval(spectateInterval);
+
+            // ❗ Remove ONLY auth/session data
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('currentRole');
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('session');
+
+            // ❗ DO NOT TOUCH arenaAds / activeMatches
+            window.location.href = 'index.html';
+        }
+
+
+        function clearIntervals() {
+            clearInterval(gameInterval);
+            clearInterval(updateInterval);
+            clearInterval(searchInterval);
+            clearInterval(spectateInterval);
+        }
+
+        /* ================= INITIALIZE PAGE ================= */
+        function initializePage() {
+            if (!currentUser || !currentRole || !checkSession()) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Player
+            if (currentRole === 'player') {
+                const el = document.getElementById('lobbyUsername');
+                if (el) el.textContent = currentUser;
+                showPage('lobbyPage');
+                loadAds('lobby');
+            }
+
+            // Spectator
+            if (currentRole === 'spectator') {
+                const el = document.getElementById('spectatorUsername');
+                if (el) el.textContent = currentUser;
+                showPage('spectatorPage');
+                loadAds('spectator');
+                loadLiveMatches();
+                loadTournaments(); // Add this line
+                spectateInterval = setInterval(() => {
+                    loadLiveMatches();
+                    loadTournaments(); // Add this line
+                }, 2000);
+            }
+
+            // Advertiser
+            if (currentRole === 'advertiser') {
+                window.location.href = 'admin_dashboard.html';
+                return;
+            }
+        }
+
+        /* ================= ADS ================= */
+        function loadAds(context) {
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+            if (!ads.length) return;
+
+            const pick = list => list[Math.floor(Math.random() * list.length)];
+
+            const top = ads.filter(a => a.zone === 'top');
+            const side = ads.filter(a => a.zone === 'side');
+
+            function inject(ad, textId, linkId, boxId) {
+                const textEl = document.getElementById(textId);
+                const linkEl = document.getElementById(linkId);
+                const boxEl = document.getElementById(boxId);
+
+                if (!ad || !textEl || !linkEl || !boxEl) return;
+
+                textEl.textContent = ad.title;
+                linkEl.href = ad.url;
+                boxEl.style.display = 'block';
+            }
+
+            if (top.length) {
+                const ad = pick(top);
+                if (context === 'lobby') inject(ad, 'lobbyAdTopText', 'lobbyAdTopLink', 'lobbyAdTop');
+                if (context === 'game') inject(ad, 'gameAdTopText', 'gameAdTopLink', 'gameAdTop');
+                if (context === 'spectator') inject(ad, 'spectatorAdTopText', 'spectatorAdTopLink', 'spectatorAdTop');
+            }
+
+            if (side.length) {
+                const ad = pick(side);
+                if (context === 'game') inject(ad, 'gameAdSideText', 'gameAdSideLink', 'gameAdSide');
+                if (context === 'spectator') inject(ad, 'spectatorAdSideText', 'spectatorAdSideLink', 'spectatorAdSide');
+            }
+        }
+
+        /* ================= MATCHMAKING ================= */
+        let currentGameType = null; // "target" or "box"
+
+        // Lobby selection
+        function startTargetGame() {
+            currentGameType = 'target';
+            findMatch();
+        }
+
+        function startBoxGame() {
+            currentGameType = 'box';
+            findMatch();
+        }
+
+        function findMatch() {
+            const btn = document.getElementById('matchmakingBtn');
+            const searchDiv = document.getElementById('searchingState');
+            if (btn) btn.style.display = 'none';
+            if (searchDiv) searchDiv.style.display = 'block';
+
+            let queue = JSON.parse(localStorage.getItem('matchQueue') || '[]');
+
+            if (queue.length) {
+                const opponent = queue.shift();
+                localStorage.setItem('matchQueue', JSON.stringify(queue));
+                startMatch(opponent.username, opponent.matchId, false);
+            } else {
+                matchId = 'match_' + Date.now();
+                queue.push({ username: currentUser, matchId });
+                localStorage.setItem('matchQueue', JSON.stringify(queue));
+                searchInterval = setInterval(checkForMatch, 1000);
+            }
+        }
+
+        function checkForMatch() {
+            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+            const found = matches.find(m => m.matchId === matchId);
+            if (found) {
+                clearInterval(searchInterval);
+                startMatch(found.player2, matchId, true);
+            }
+        }
+
+        /* ================= START MATCH ================= */
+        function startMatch(opponent, id, player1) {
+            isPlayer1 = player1;
+            opponentName = opponent;
+            matchId = id;
+
+            if (player1) {
+                const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+                matches.push({ matchId, player1: currentUser, player2: opponent, score1: 0, score2: 0, time: 60, lastUpdate: Date.now() });
+                localStorage.setItem('activeMatches', JSON.stringify(matches));
+            }
+
+            const yourNameEl = document.getElementById('gameYourName');
+            const oppNameEl = document.getElementById('gameOppName');
+            if (yourNameEl) yourNameEl.textContent = currentUser;
+            if (oppNameEl) oppNameEl.textContent = opponent;
+
+            showPage('gamePage');
+            loadAds('game');
+            startGame();
+        }
+
+        /* ================= GAME ================= */
+        function startGame() {
+            gameActive = true;
+            score = 0;
+            opponentScore = 0;
+            gameTime = 60;
+
+            gameYourScore.textContent = score;
+            gameOppScore.textContent = opponentScore;
+            gameTimer.textContent = gameTime;
+
+            updateInterval = setInterval(syncMatch, 500);
+            gameInterval = setInterval(gameTick, 1000);
+
+            // Game type-specific initialization
+            if (currentGameType === 'target') spawnTarget();
+            if (currentGameType === 'box') spawnBox();
+
+            gameCanvas.addEventListener('mousemove', movePlayer);
+        }
+
+        function gameTick() {
+            const timerEl = document.getElementById('gameTimer');
+            gameTime--;
+            if (timerEl) timerEl.textContent = gameTime;
+            if (gameTime <= 0) endGame();
+        }
+
+        function movePlayer(e) {
+            const player = document.getElementById('playerChar');
+            const canvas = document.getElementById('gameCanvas');
+            if (!player || !canvas) return;
+
+            const rect = canvas.getBoundingClientRect();
+            player.style.left = e.clientX - rect.left - 25 + 'px';
+            player.style.top = e.clientY - rect.top - 25 + 'px';
+        }
+
+        function spawnTarget() {
+            if (!gameActive) return;
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas) return;
+
+            const t = document.createElement('div');
+            t.className = 'target';
+            t.textContent = '+1';
+            t.style.left = Math.random() * (canvas.clientWidth - 60) + 'px';
+            t.style.top = Math.random() * (canvas.clientHeight - 60) + 'px';
+
+            t.onclick = () => {
+                score++;
+                const scoreEl = document.getElementById('gameYourScore');
+                if (scoreEl) scoreEl.textContent = score;
+                t.remove();
+                spawnTarget();
+            };
+
+            canvas.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
+
+        /* ================= BOX GAME ================= */
+        function spawnBox() {
+            if (!gameActive) return;
+            const box = document.createElement('div');
+            box.className = 'target'; // reuse styles
+            box.style.background = 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)';
+            box.textContent = '+1';
+
+            box.style.left = Math.random() * (gameCanvas.clientWidth - 60) + 'px';
+            box.style.top = Math.random() * (gameCanvas.clientHeight - 60) + 'px';
+
+            box.onclick = () => {
+                score++;
+                gameYourScore.textContent = score;
+                box.remove();
+                spawnBox(); // spawn next box
+            };
+
+            gameCanvas.appendChild(box);
+            setTimeout(() => box.remove(), 2500);
+        }
+
+        /* ================= SYNC MATCH ================= */
+        function syncMatch() {
+            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+            const match = matches.find(m => m.matchId === matchId);
+            if (!match) return;
+
+            if (isPlayer1) match.score1 = score;
+            else match.score2 = score;
+
+            match.time = gameTime;
+            match.lastUpdate = Date.now();
+
+            const oppScoreEl = document.getElementById('gameOppScore');
+            if (oppScoreEl) oppScoreEl.textContent = isPlayer1 ? match.score2 : match.score1;
+
+            localStorage.setItem('activeMatches', JSON.stringify(matches));
+        }
+
+        /* ================= END GAME ================= */
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameInterval);
+            clearInterval(updateInterval);
+
+            let matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+            matches = matches.filter(m => m.matchId !== matchId);
+            localStorage.setItem('activeMatches', JSON.stringify(matches));
+
+            const yourScoreEl = document.getElementById('finalYourScore');
+            const oppScoreEl = document.getElementById('finalOppScore');
+            const winnerTextEl = document.getElementById('winnerText');
+            if (yourScoreEl) yourScoreEl.textContent = score;
+            if (oppScoreEl) oppScoreEl.textContent = opponentScore;
+            if (winnerTextEl) winnerTextEl.textContent = score > opponentScore ? 'You Win!' : score < opponentScore ? 'You Lose!' : 'Draw!';
+
+            const overlay = document.getElementById('gameOverOverlay');
+            if (overlay) overlay.style.display = 'flex';
+        }
+
+        function returnToLobby() {
+            const overlay = document.getElementById('gameOverOverlay');
+            if (overlay) overlay.style.display = 'none';
+            showPage('lobbyPage');
+        }
+
+        /* ================= CLEAN DEAD MATCHES ================= */
+        setInterval(() => {
+            let matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+            const now = Date.now();
+            matches = matches.filter(m => now - m.lastUpdate < 10000);
+            localStorage.setItem('activeMatches', JSON.stringify(matches));
+        }, 5000);
+
+        /* ================= ADVERTISER ================= */
+        function createAd() {
+            const titleEl = document.getElementById('adTitle');
+            const urlEl = document.getElementById('adUrl');
+            const zoneEl = document.getElementById('adZone');
+
+            if (!titleEl || !urlEl || !zoneEl) {
+                alert('Ad form elements missing');
+                return;
+            }
+
+            const title = titleEl.value.trim();
+            const url = urlEl.value.trim();
+            const zone = zoneEl.value;
+
+            if (!title || !url) {
+                alert('Please fill all fields');
+                return;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                alert('URL must start with http:// or https://');
+                return;
+            }
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+
+            const newAd = {
+                id: 'ad_' + Date.now(),
+                title,
+                url,
+                zone,
+                owner: currentUser,
+                createdAt: Date.now()
+            };
+
+            ads.push(newAd);
+            localStorage.setItem('arenaAds', JSON.stringify(ads));
+
+            // Clear form
+            titleEl.value = '';
+            urlEl.value = '';
+
+            // Reload advertiser list
+            loadAdvertiserAds();
+
+            alert('Ad created successfully ✅');
+        }
+
+
+        function deleteAd(index) {
+            if (!confirm('Delete this ad?')) return;
+
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+            ads.splice(index, 1);
+            localStorage.setItem('arenaAds', JSON.stringify(ads));
+
+            loadAdvertiserAds();
+        }
+
+        function loadAdvertiserAds() {
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+
+            // Only ads created by this advertiser
+            const myAds = ads
+                .map((ad, index) => ({ ...ad, index }))
+                .filter(ad => ad.owner === currentUser);
+
+            adsList.innerHTML = myAds.length
+                ? ''
+                : '<div style="color:#aaa;">No ads yet</div>';
+
+            myAds.forEach(ad => {
+                const div = document.createElement('div');
+                div.className = 'ad-item';
+
+                div.innerHTML = `
+            <div class="ad-item-title">${ad.title}</div>
+            <div class="ad-item-info">Zone: ${ad.zone.toUpperCase()}</div>
+            <div class="ad-item-info">
+                <a href="${ad.url}" target="_blank">${ad.url}</a>
+            </div>
+            <button class="btn-delete-ad" onclick="deleteAd(${ad.index})">
+                🗑 Delete
+            </button>
+        `;
+
+                adsList.appendChild(div);
+            });
+        }
+        function loadLiveMatches() {
+            const list = document.getElementById('matchesList');
+            if (!list) return;
+
+            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+
+            if (!matches.length) {
+                list.innerHTML = `
+            <div style="text-align:center;color:#aaa;padding:40px 20px;">
+                No active matches
+            </div>
+        `;
+                return;
+            }
+
+            list.innerHTML = '';
+
+            matches.forEach((m, index) => {
+                const div = document.createElement('div');
+                div.className = 'match-item';
+
+                div.innerHTML = `
+            <div class="match-players">${m.player1} vs ${m.player2}</div>
+            <div class="match-score">${m.score1} : ${m.score2}</div>
+            <div class="match-time">⏱ ${m.time}s</div>
+        `;
+
+                div.onclick = () => spectateMatch(m.matchId);
+                list.appendChild(div);
+            });
+        }
+        function spectateMatch(matchId) {
+            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+            const match = matches.find(m => m.matchId === matchId);
+            if (!match) return;
+
+            document.getElementById('spectateEmpty').style.display = 'none';
+            document.getElementById('spectateActive').style.display = 'block';
+
+            specPlayer1Name.textContent = match.player1;
+            specPlayer2Name.textContent = match.player2;
+            specPlayer1Score.textContent = match.score1;
+            specPlayer2Score.textContent = match.score2;
+            specTimer.textContent = match.time;
+
+            specWatchingNames.textContent = `${match.player1} vs ${match.player2}`;
+        }
+        function goToTournamentRegistration() {
+            window.location.href = 'player_tournament_page.html';
+        }
+
+        function loadTournaments() {
+            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
+            const list = document.getElementById('tournamentsListBottom'); // Changed ID
+
+            if (!tournaments.length) {
+                list.innerHTML = `
+            <div style="text-align: center; color: #aaa; padding: 20px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🏆</div>
+                <div>No tournaments available</div>
+            </div>
+        `;
+                return;
+            }
+
+            list.innerHTML = '';
+
+            tournaments.forEach(tournament => {
+                const now = Date.now();
+                const startTime = new Date(tournament.startDate).getTime();
+
+                let status = 'upcoming';
+                let statusText = 'Upcoming';
+                let canWatch = false;
+
+                if (tournament.status === 'live' || (now >= startTime)) {
+                    status = 'live';
+                    statusText = '🔴 LIVE';
+                    canWatch = true;
+                }
+
+                const div = document.createElement('div');
+                div.className = 'tournament-item';
+
+                div.innerHTML = `
+            <div class="tournament-header">
+                <div class="tournament-title">🏆 ${tournament.name}</div>
+                <span class="tournament-status ${status}">${statusText}</span>
+            </div>
+            <div class="tournament-info">
+                📅 ${new Date(tournament.startDate).toLocaleDateString()} 
+                ${new Date(tournament.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+            <div class="tournament-info">
+                🎮 ${tournament.gameType || 'Target Game'}
+            </div>
+            <div class="tournament-info">
+                👥 ${tournament.participants?.length || 0}/${tournament.maxParticipants} participants
+            </div>
+            <button class="btn-watch" 
+                    onclick="watchTournament('${tournament.id}')" 
+                    ${!canWatch ? 'disabled' : ''}>
+                ${status === 'live' ? '👁️ Watch Now' : '⏰ Not Started'}
+            </button>
+        `;
+
+                list.appendChild(div);
+            });
+        }
+
+        function watchTournament(tournamentId) {
+            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
+            const tournament = tournaments.find(t => t.id === tournamentId);
+
+            if (!tournament) return;
+
+            alert(`Watching: ${tournament.name}\nParticipants: ${tournament.participants?.length || 0}\nStatus: ${tournament.status || 'upcoming'}`);
+
+            // You can add more viewing logic here
+        }
+
+        // Sample tournament data (for testing)
+        function createSampleTournaments() {
+            const tournaments = [
+                {
+                    id: 'tournament_1',
+                    name: 'Winter Championship 2026',
+                    startDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                    gameType: 'Target Game',
+                    maxParticipants: 16,
+                    participants: ['Player1', 'Player2', 'Player3'],
+                    status: 'upcoming'
+                },
+                {
+                    id: 'tournament_2',
+                    name: 'Weekly Arena Cup',
+                    startDate: new Date().toISOString(),
+                    gameType: 'Box Game',
+                    maxParticipants: 8,
+                    participants: ['Alice', 'Bob', 'Charlie', 'David'],
+                    status: 'live'
+                }
+            ];
+
+            localStorage.setItem('tournaments', JSON.stringify(tournaments));
+        }
+
+        // Uncomment to create sample data
+        createSampleTournaments();
+
+    </script>
+
+
+</body>

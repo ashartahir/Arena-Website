@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrator Dashboard - Gaming Platform</title>
+    <link rel="stylesheet" href="uiforadmin.css">
+</head>
+
+<body>
+    <div id="adminPage" class="page active">
+        <div class="header">
+            <div class="header-title">
+                <span>🛡️ Administrator: <span id="adminUsername"></span></span>
+            </div>
+            <button class="btn-logout" onclick="logout()">🚪 Logout</button>
+        </div>
+
+        <div class="admin-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div style="font-size:48px;margin-bottom:15px;">👥</div>
+                    <div class="stat-value" id="totalUsers">0</div>
+                    <div>Total Users</div>
+                </div>
+                <div class="stat-card">
+                    <div style="font-size:48px;margin-bottom:15px;">📢</div>
+                    <div class="stat-value" id="totalAds">0</div>
+                    <div>Total Ads</div>
+                </div>
+                <div class="stat-card">
+                    <div style="font-size:48px;margin-bottom:15px;">🚫</div>
+                    <div class="stat-value" id="blockedUsers">0</div>
+                    <div>Blocked Users</div>
+                </div>
+            </div>
+
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="switchTab('users')">👥 Users</button>
+                <button class="tab-btn" onclick="switchTab('ads')">📢 Advertisements</button>
+                <button class="tab-btn tournament-btn" onclick="openTournament()">🏆 Tournaments</button>
+            </div>
+
+            <div id="usersTab" class="tab-content active">
+                <div class="card">
+                    <h2>👥 User Management</h2>
+                    <div class="list-container" id="usersList"></div>
+                </div>
+            </div>
+
+            <div id="adsTab" class="tab-content">
+                <div class="admin-grid">
+                    <div class="card">
+                        <h2>📝 Create Advertisement</h2>
+                        <div class="form-group">
+                            <label>Ad Title</label>
+                            <input type="text" id="adTitle" placeholder="Enter ad title">
+                        </div>
+                        <div class="form-group">
+                            <label>Target URL</label>
+                            <input type="url" id="adUrl" placeholder="https://example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Ad Zone</label>
+                            <select id="adZone">
+                                <option value="top">Top Banner</option>
+                                <option value="side">Side Banner</option>
+                            </select>
+                        </div>
+                        <button class="btn-create" onclick="createAd()">Create Ad</button>
+                    </div>
+
+                    <div class="card">
+                        <h2>📋 All Advertisements</h2>
+                        <div class="list-container" id="adsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = '';
+
+        function init() {
+            currentUser = 'admin';
+            document.getElementById('adminUsername').textContent = currentUser;
+            loadUsers();
+            loadAds();
+            updateStats();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+
+            if (tab === 'users') loadUsers();
+            if (tab === 'ads') loadAds();
+        }
+
+        function loadUsers() {
+            const users = JSON.parse(localStorage.getItem('platformUsers') || '[]');
+            const list = document.getElementById('usersList');
+            list.innerHTML = users.length ? '' : '<p style="text-align:center;color:#aaa;padding:40px;">No users found</p>';
+
+            users.forEach(user => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div>
+                        <div style="font-size:18px;font-weight:bold;">${user.username}
+                            <span class="user-status ${user.blocked ? 'blocked' : 'active'}">
+                                ${user.blocked ? 'Blocked' : 'Active'}
+                            </span>
+                        </div>
+                        <div style="font-size:14px;color:#aaa;">Joined: ${user.joinDate || 'Unknown'}</div>
+                    </div>
+                    <div class="list-item-actions">
+                        ${user.blocked ?
+                        `<button class="btn-unblock" onclick="unblockUser('${user.username}')">Unblock</button>` :
+                        `<button class="btn-block" onclick="blockUser('${user.username}')">Block</button>`
+                    }
+                        <button class="btn-delete" onclick="deleteUser('${user.username}')">Delete</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function blockUser(username) {
+            if (!confirm(`Block user ${username}?`)) return;
+            let users = JSON.parse(localStorage.getItem('platformUsers') || '[]');
+            const user = users.find(u => u.username === username);
+            if (user) user.blocked = true;
+            localStorage.setItem('platformUsers', JSON.stringify(users));
+            loadUsers();
+            updateStats();
+        }
+
+        function unblockUser(username) {
+            let users = JSON.parse(localStorage.getItem('platformUsers') || '[]');
+            const user = users.find(u => u.username === username);
+            if (user) user.blocked = false;
+            localStorage.setItem('platformUsers', JSON.stringify(users));
+            loadUsers();
+            updateStats();
+        }
+
+        function deleteUser(username) {
+            if (!confirm(`Delete user ${username}? This cannot be undone!`)) return;
+            let users = JSON.parse(localStorage.getItem('platformUsers') || '[]');
+            users = users.filter(u => u.username !== username);
+            localStorage.setItem('platformUsers', JSON.stringify(users));
+            loadUsers();
+            updateStats();
+        }
+
+        function createAd() {
+            const title = document.getElementById('adTitle').value.trim();
+            const url = document.getElementById('adUrl').value.trim();
+            const zone = document.getElementById('adZone').value;
+
+            if (!title || !url) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+            ads.push({
+                id: Date.now(),
+                title,
+                url,
+                zone,
+                createdBy: 'admin',
+                createdAt: new Date().toISOString()
+            });
+            localStorage.setItem('arenaAds', JSON.stringify(ads));
+
+            document.getElementById('adTitle').value = '';
+            document.getElementById('adUrl').value = '';
+            loadAds();
+            updateStats();
+            alert('Ad created successfully!');
+        }
+
+        function loadAds() {
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+            const list = document.getElementById('adsList');
+            list.innerHTML = ads.length ? '' : '<p style="text-align:center;color:#aaa;padding:40px;">No ads created</p>';
+
+            ads.forEach(ad => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `
+                    <div>
+                        <div style="font-size:18px;font-weight:bold;">${ad.title}</div>
+                        <div style="font-size:14px;color:#aaa;">Zone: ${ad.zone.toUpperCase()}</div>
+                        <div style="font-size:14px;color:#aaa;">URL: ${ad.url}</div>
+                    </div>
+                    <button class="btn-delete" onclick="deleteAd(${ad.id})">Delete</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function deleteAd(id) {
+            if (!confirm('Delete this ad?')) return;
+            let ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+            ads = ads.filter(a => a.id !== id);
+            localStorage.setItem('arenaAds', JSON.stringify(ads));
+            loadAds();
+            updateStats();
+        }
+
+        function updateStats() {
+            const users = JSON.parse(localStorage.getItem('platformUsers') || '[]');
+            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+
+            document.getElementById('totalUsers').textContent = users.length;
+            document.getElementById('totalAds').textContent = ads.length;
+            document.getElementById('blockedUsers').textContent = users.filter(u => u.blocked).length;
+        }
+
+        function logout() {
+            if (!confirm('Logout?')) return;
+
+            // REMOVE AUTH ONLY
+            localStorage.removeItem('session');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('currentRole');
+
+            // EXTRA SAFETY
+            sessionStorage.clear();
+
+            // HARD REDIRECT (prevents back navigation)
+            window.location.replace('index.html');
+        }
+
+        function openTournament() {
+            window.location.href = 'tournament_creation_page.html';
+        }
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>
