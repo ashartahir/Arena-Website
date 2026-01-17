@@ -581,6 +581,10 @@
       </div>
     </div>
   </div>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io("http://localhost:3000"); 
+  </script>
   <script type="text/html" id="wpb-modifications">window.wpbCustomElement = 1;</script>
   <script type="text/javascript" src="https://arena.im/wp-includes/js/jquery/jquery.min.js?ver=3.7.1"
     id="jquery-core-js" defer data-deferred="1"></script>
@@ -615,7 +619,7 @@
         showError('Your account has been blocked by admin');
         return;
       }
-      
+
       if (!existing) {
         users.push({
           username,
@@ -656,6 +660,7 @@
       }
     };
   </script>
+
 
 </body>
 
