@@ -931,6 +931,11 @@
             </div>
         </div>
     </div>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io("http://localhost:3000");
+        // later replace with live server URL
+    </script>
 
     <script>
         console.log('Dashboard loaded');
@@ -940,7 +945,6 @@
         if (!session.user) {
             document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
         }
-
 
 
         /* ================= GLOBAL CONSTANTS ================= */
@@ -1112,22 +1116,16 @@
         function findMatch() {
             const btn = document.getElementById('matchmakingBtn');
             const searchDiv = document.getElementById('searchingState');
+
             if (btn) btn.style.display = 'none';
             if (searchDiv) searchDiv.style.display = 'block';
 
-            let queue = JSON.parse(localStorage.getItem('matchQueue') || '[]');
-
-            if (queue.length) {
-                const opponent = queue.shift();
-                localStorage.setItem('matchQueue', JSON.stringify(queue));
-                startMatch(opponent.username, opponent.matchId, false);
-            } else {
-                matchId = 'match_' + Date.now();
-                queue.push({ username: currentUser, matchId });
-                localStorage.setItem('matchQueue', JSON.stringify(queue));
-                searchInterval = setInterval(checkForMatch, 1000);
-            }
+            socket.emit("joinQueue", {
+                username: currentUser,
+                gameType: currentGameType
+            });
         }
+
 
         function checkForMatch() {
             const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
@@ -1533,6 +1531,30 @@
 
         // Uncomment to create sample data
         createSampleTournaments();
+
+        function cancelSearch() {
+            socket.emit("leaveQueue");
+
+            document.getElementById('matchmakingBtn').style.display = 'block';
+            document.getElementById('searchingState').style.display = 'none';
+        }
+        socket.on("matchFound", data => {
+            /*
+              data = {
+                matchId,
+                opponent,
+                isPlayer1
+              }
+            */
+
+            clearInterval(searchInterval);
+
+            startMatch(
+                data.opponent,
+                data.matchId,
+                data.isPlayer1
+            );
+        });
 
     </script>
 
