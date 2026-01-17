@@ -114,20 +114,24 @@ io.on("connection", (socket) => {
 
   /* ================= REAL-TIME SCORE SYNC ================= */
   socket.on("scoreUpdate", ({ matchId, score, time }) => {
-    const match = activeMatches[matchId];
-    if (!match) return;
+  const match = activeMatches[matchId];
+  if (!match) return;
 
-    match.scores[socket.id] = score;
-    match.time = time;
+  match.scores[socket.id] = score;
+  match.time = time;
 
-    // Update players
-    Object.keys(match.players).forEach(playerSocketId => {
-      io.to(playerSocketId).emit("matchUpdate", {
-        scores: match.scores,
-        players: Object.values(match.players),
-        time: match.time
-      });
-    });
+  const scoreByName = {};
+  Object.entries(match.players).forEach(([sid, name]) => {
+    scoreByName[name] = match.scores[sid] || 0;
+  });
+
+  io.to(matchId).emit("matchUpdate", {
+    scores: scoreByName,
+    players: Object.values(match.players),
+    time: match.time
+  });
+});
+
 
     // Update spectators
     if (spectators[matchId]) {
