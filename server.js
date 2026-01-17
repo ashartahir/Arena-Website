@@ -4,7 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-app.use(express.static(path.join(__dirname, 'public')));
+
 
 
 const app = express();
@@ -19,7 +19,7 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
-
+app.use(express.static(path.join(__dirname, 'public')));
 /* ================= IN-MEMORY STORAGE ================= */
 let tournaments = [];
 let matchQueue = [];           // waiting players
