@@ -935,8 +935,12 @@
 
     <script>
         /* ================= SOCKET ================= */
-        const socket = io("http://localhost:3000");
-        console.log('Dashboard loaded');
+        let socket;
+        try {
+            socket = io("http://localhost:3000");
+        } catch (e) {
+            console.error("Socket connection failed:", e);
+        }
 
         /* ================= SESSION ================= */
         const SESSION_DURATION = 30 * 60 * 1000; // 30 min
