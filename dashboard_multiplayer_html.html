@@ -933,604 +933,378 @@
     </div>
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
 
-    <script>
-          /* ================= SOCKET ================= */
-        const socket = io("http://localhost:3000");
-        console.log('Dashboard loaded');
-
-        const session = JSON.parse(localStorage.getItem('session') || '{}');
-        console.log('Session:', session);
-
-        if (!session.user) {
-            document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
-        }
-
-        /* ================= GLOBAL CONSTANTS ================= */
-        const SESSION_DURATION = 30 * 60 * 1000; // 30 min session
-
-        /* ================= DOM READY ================= */
-        window.addEventListener('DOMContentLoaded', () => {
-            initializePage();
-            setupActivityListener();
-        });
-
-        /* ================= LOGOUT ================= */
-        function logout() {
-            clearInterval(gameInterval); // ✅ still valid (game timer)
-
-            // 🔥 NEW: leave match safely if connected
-            if (typeof socket !== 'undefined' && matchId) {
-                socket.emit("leaveMatch", { matchId });
-            }
-
-            // ❗ Remove ONLY auth/session data
-            localStorage.removeItem('currentUser');
-            localStorage.removeItem('currentRole');
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('session');
-
-            window.location.href = 'index.html';
-        }
-
-        /* ================= INTERVAL CLEANUP ================= */
-        function clearIntervals() {
-            clearInterval(gameInterval); // ✅ keep
-            // ❌ removed obsolete polling intervals
-        }
-
-        /* ================= ADS ================= */
-        function loadAds(context) {
-            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
-            if (!ads.length) return;
-
-            const pick = list => list[Math.floor(Math.random() * list.length)];
-
-            const top = ads.filter(a => a.zone === 'top');
-            const side = ads.filter(a => a.zone === 'side');
-
-            function inject(ad, textId, linkId, boxId) {
-                const textEl = document.getElementById(textId);
-                const linkEl = document.getElementById(linkId);
-                const boxEl = document.getElementById(boxId);
-
-                if (!ad || !textEl || !linkEl || !boxEl) return;
-
-                textEl.textContent = ad.title;
-                linkEl.href = ad.url;
-                boxEl.style.display = 'block';
-            }
-
-            if (top.length) {
-                const ad = pick(top);
-                if (context === 'lobby') inject(ad, 'lobbyAdTopText', 'lobbyAdTopLink', 'lobbyAdTop');
-                if (context === 'game') inject(ad, 'gameAdTopText', 'gameAdTopLink', 'gameAdTop');
-                if (context === 'spectator') inject(ad, 'spectatorAdTopText', 'spectatorAdTopLink', 'spectatorAdTop');
-            }
-
-            if (side.length) {
-                const ad = pick(side);
-                if (context === 'game') inject(ad, 'gameAdSideText', 'gameAdSideLink', 'gameAdSide');
-                if (context === 'spectator') inject(ad, 'spectatorAdSideText', 'spectatorAdSideLink', 'spectatorAdSide');
-            }
-        }
-
-      
-        /* ================= SESSION ================= */
-        const SESSION_DURATION = 30 * 60 * 1000;
-        const session = JSON.parse(localStorage.getItem('session') || '{}');
-        if (!session.user) {
-            document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
-        }
-
-        /* ================= GLOBAL STATE ================= */
-        let currentUser = localStorage.getItem('currentUser');
-        let currentRole = localStorage.getItem('currentRole');
-        let currentGameType = null;
-
-        let matchId = null;
-        let isPlayer1 = false;
-        let opponentName = '';
-
-        let gameActive = false;
-        let score = 0;
-        let opponentScore = 0;
-        let gameTime = 60;
-        let gameInterval = null;
-
-        /* ================= PAGE CONTROL ================= */
-        function showPage(id) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById(id)?.classList.add('active');
-        }
-
-        /* ================= SESSION HANDLING ================= */
-        function refreshSession() {
-            const s = JSON.parse(localStorage.getItem('session') || '{}');
-            if (!s.user) return;
-            s.expiresAt = Date.now() + SESSION_DURATION;
-            localStorage.setItem('session', JSON.stringify(s));
-        }
-
-        ['click', 'mousemove', 'keydown'].forEach(evt =>
-            document.addEventListener(evt, refreshSession)
-        );
-
-        function checkSession() {
-            const s = JSON.parse(localStorage.getItem('session') || '{}');
-            if (!s.user || Date.now() > s.expiresAt) {
-                localStorage.clear();
-                window.location.href = 'index.html';
-                return false;
-            }
-            return true;
-        }
-
-        /* ================= INITIAL LOAD ================= */
-        window.addEventListener('DOMContentLoaded', () => {
-            if (!currentUser || !currentRole || !checkSession()) {
-                window.location.href = 'index.html';
-                return;
-            }
-
-            if (currentRole === 'player') {
-                document.getElementById('lobbyUsername').textContent = currentUser;
-                showPage('lobbyPage');
-                loadAds('lobby');
-            }
-
-            if (currentRole === 'spectator') {
-                document.getElementById('spectatorUsername').textContent = currentUser;
-                showPage('spectatorPage');
-                loadAds('spectator');
-                loadTournaments();
-            }
-
-            if (currentRole === 'advertiser') {
-                window.location.href = 'admin_dashboard.html';
-            }
-        });
-
-        /* ================= MATCHMAKING ================= */
-        function startTargetGame() {
-            currentGameType = 'target';
-            findMatch();
-        }
-
-        function startBoxGame() {
-            currentGameType = 'box';
-            findMatch();
-        }
-
-        function findMatch() {
-            document.getElementById('matchmakingBtn').style.display = 'none';
-            document.getElementById('searchingState').style.display = 'block';
-
-            socket.emit("joinQueue", {
-                username: currentUser,
-                gameType: currentGameType
-            });
-        }
-
-        function cancelSearch() {
-            socket.emit("leaveQueue");
-            document.getElementById('matchmakingBtn').style.display = 'block';
-            document.getElementById('searchingState').style.display = 'none';
-        }
-
-        /* ================= MATCH FOUND ================= */
-        socket.on("matchFound", data => {
-            matchId = data.matchId;
-            isPlayer1 = data.isPlayer1;
-            opponentName = data.opponent;
-
-            document.getElementById('gameYourName').textContent = currentUser;
-            document.getElementById('gameOppName').textContent = opponentName;
-
-            showPage('gamePage');
-            loadAds('game');
-            startGame();
-        });
-
-        /* ================= GAME ================= */
-        function startGame() {
-            gameActive = true;
-            score = 0;
-            opponentScore = 0;
-            gameTime = 60;
-
-            gameYourScore.textContent = score;
-            gameOppScore.textContent = opponentScore;
-            gameTimer.textContent = gameTime;
-
-            gameInterval = setInterval(() => {
-                gameTime--;
-                gameTimer.textContent = gameTime;
-                if (gameTime <= 0) endGame();
-            }, 1000);
-
-            gameCanvas.innerHTML = '';
-
-            if (currentGameType === 'target') spawnTarget();
-            if (currentGameType === 'box') spawnBox();
-        }
-
-        /* ================= TARGET GAME ================= */
-        function spawnTarget() {
-            if (!gameActive) return;
-
-            const t = document.createElement('div');
-            t.className = 'target';
-            t.textContent = '+1';
-
-            t.style.left = Math.random() * (gameCanvas.clientWidth - 60) + 'px';
-            t.style.top = Math.random() * (gameCanvas.clientHeight - 60) + 'px';
-
-            t.onclick = () => {
-                score++;
-                gameYourScore.textContent = score;
-
-                socket.emit("scoreUpdate", {
-                    matchId,
-                    score,
-                    time: gameTime
-                });
-
-                t.remove();
-                spawnTarget();
-            };
-
-            gameCanvas.appendChild(t);
-
-            setTimeout(() => {
-                if (t.parentNode) {
-                    t.remove();
-                    spawnTarget();
-                }
-            }, 2000);
-        }
-
-        /* ================= BOX GAME ================= */
-        function spawnBox() {
-            if (!gameActive) return;
-
-            const box = document.createElement('div');
-            box.className = 'target';
-            box.textContent = '+1';
-
-            box.style.left = Math.random() * (gameCanvas.clientWidth - 60) + 'px';
-            box.style.top = Math.random() * (gameCanvas.clientHeight - 60) + 'px';
-
-            box.onclick = () => {
-                score++;
-                gameYourScore.textContent = score;
-
-                socket.emit("scoreUpdate", {
-                    matchId,
-                    score,
-                    time: gameTime
-                });
-
-                box.remove();
-                spawnBox();
-            };
-
-            gameCanvas.appendChild(box);
-            setTimeout(() => box.remove(), 2500);
-        }
-
-        /* ================= LIVE UPDATES ================= */
-        socket.on("matchUpdate", data => {
-            const myId = socket.id;
-            const oppId = Object.keys(data.scores).find(id => id !== myId);
-
-            opponentScore = data.scores[oppId];
-            gameOppScore.textContent = opponentScore;
-            gameTimer.textContent = data.time;
-        });
-
-        /* ================= END GAME ================= */
-        function endGame() {
-            gameActive = false;
-            clearInterval(gameInterval);
-
-            finalYourScore.textContent = score;
-            finalOppScore.textContent = opponentScore;
-
-            winnerText.textContent =
-                score > opponentScore ? 'You Win!' :
-                    score < opponentScore ? 'You Lose!' : 'Draw!';
-
-            gameOverOverlay.style.display = 'flex';
-        }
-
-        function returnToLobby() {
-            gameOverOverlay.style.display = 'none';
-            showPage('lobbyPage');
-        }
-
-        /* ================= QUIT ================= */
-        function quitGame() {
-            socket.emit("leaveMatch", { matchId });
-            clearInterval(gameInterval);
-            gameCanvas.innerHTML = '';
-            showPage('lobbyPage');
-        }
-
-        socket.on("matchEnded", () => {
-            alert("Match ended");
-            quitGame();
-        });
-        /* ================= CLEAN DEAD MATCHES ================= */
-        setInterval(() => {
-            let matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-            const now = Date.now();
-            matches = matches.filter(m => now - m.lastUpdate < 10000);
-            localStorage.setItem('activeMatches', JSON.stringify(matches));
-        }, 5000);
-
-        /* ================= ADVERTISER ================= */
-        function createAd() {
-            const titleEl = document.getElementById('adTitle');
-            const urlEl = document.getElementById('adUrl');
-            const zoneEl = document.getElementById('adZone');
-
-            if (!titleEl || !urlEl || !zoneEl) {
-                alert('Ad form elements missing');
-                return;
-            }
-
-            const title = titleEl.value.trim();
-            const url = urlEl.value.trim();
-            const zone = zoneEl.value;
-
-            if (!title || !url) {
-                alert('Please fill all fields');
-                return;
-            }
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                alert('URL must start with http:// or https://');
-                return;
-            }
-            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
-
-            const newAd = {
-                id: 'ad_' + Date.now(),
-                title,
-                url,
-                zone,
-                owner: currentUser,
-                createdAt: Date.now()
-            };
-
-            ads.push(newAd);
-            localStorage.setItem('arenaAds', JSON.stringify(ads));
-
-            // Clear form
-            titleEl.value = '';
-            urlEl.value = '';
-
-            // Reload advertiser list
-            loadAdvertiserAds();
-
-            alert('Ad created successfully ✅');
-        }
-
-
-        function deleteAd(index) {
-            if (!confirm('Delete this ad?')) return;
-
-            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
-            ads.splice(index, 1);
-            localStorage.setItem('arenaAds', JSON.stringify(ads));
-
-            loadAdvertiserAds();
-        }
-
-        function loadAdvertiserAds() {
-            const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
-
-            // Only ads created by this advertiser
-            const myAds = ads
-                .map((ad, index) => ({ ...ad, index }))
-                .filter(ad => ad.owner === currentUser);
-
-            adsList.innerHTML = myAds.length
-                ? ''
-                : '<div style="color:#aaa;">No ads yet</div>';
-
-            myAds.forEach(ad => {
-                const div = document.createElement('div');
-                div.className = 'ad-item';
-
-                div.innerHTML = `
-            <div class="ad-item-title">${ad.title}</div>
-            <div class="ad-item-info">Zone: ${ad.zone.toUpperCase()}</div>
-            <div class="ad-item-info">
-                <a href="${ad.url}" target="_blank">${ad.url}</a>
-            </div>
-            <button class="btn-delete-ad" onclick="deleteAd(${ad.index})">
-                🗑 Delete
-            </button>
+   <script>
+/* ================= SOCKET ================= */
+const socket = io("http://localhost:3000");
+console.log('Dashboard loaded');
+
+/* ================= SESSION ================= */
+const SESSION_DURATION = 30 * 60 * 1000; // 30 min
+const session = JSON.parse(localStorage.getItem('session') || '{}');
+if (!session.user) {
+    document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
+}
+
+/* ================= GLOBAL STATE ================= */
+let currentUser = localStorage.getItem('currentUser');
+let currentRole = localStorage.getItem('currentRole');
+let currentGameType = null;
+
+let matchId = null;
+let isPlayer1 = false;
+let opponentName = '';
+
+let gameActive = false;
+let score = 0;
+let opponentScore = 0;
+let gameTime = 60;
+let gameInterval = null;
+let spectatingMatchId = null;
+
+/* ================= SESSION HANDLING ================= */
+function refreshSession() {
+    const s = JSON.parse(localStorage.getItem('session') || '{}');
+    if (!s.user) return;
+    s.expiresAt = Date.now() + SESSION_DURATION;
+    localStorage.setItem('session', JSON.stringify(s));
+}
+['click','mousemove','keydown'].forEach(evt =>
+    document.addEventListener(evt, refreshSession)
+);
+
+function checkSession() {
+    const s = JSON.parse(localStorage.getItem('session') || '{}');
+    if (!s.user || Date.now() > s.expiresAt) {
+        localStorage.clear();
+        window.location.href = 'index.html';
+        return false;
+    }
+    return true;
+}
+
+/* ================= PAGE CONTROL ================= */
+function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id)?.classList.add('active');
+}
+
+/* ================= LOGOUT ================= */
+function logout() {
+    clearInterval(gameInterval); // clear game timer
+    if (matchId) socket.emit("leaveMatch", { matchId });
+
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('currentRole');
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('session');
+
+    window.location.href = 'index.html';
+}
+
+/* ================= INITIALIZE PAGE ================= */
+function initializePage() {
+    if (!currentUser || !currentRole || !checkSession()) {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    if (currentRole === 'player') {
+        document.getElementById('lobbyUsername').textContent = currentUser;
+        showPage('lobbyPage');
+        loadAds('lobby');
+    }  else if (currentRole === 'spectator') {
+        document.getElementById('spectatorUsername').textContent = currentUser;
+        showPage('spectatorPage');
+        loadAds('spectator');
+        loadTournaments();
+        loadLiveMatches(); // initial load
+    } else if (currentRole === 'advertiser') {
+        window.location.href = 'admin_dashboard.html';
+    }
+}
+
+/* ================= DOM READY ================= */
+window.addEventListener('DOMContentLoaded', () => {
+    initializePage();
+});
+
+/* ================= ADS ================= */
+function loadAds(context) {
+    const ads = JSON.parse(localStorage.getItem('arenaAds') || '[]');
+    if (!ads.length) return;
+    const pick = list => list[Math.floor(Math.random() * list.length)];
+    const top = ads.filter(a => a.zone === 'top');
+    const side = ads.filter(a => a.zone === 'side');
+
+    function inject(ad, textId, linkId, boxId) {
+        const textEl = document.getElementById(textId);
+        const linkEl = document.getElementById(linkId);
+        const boxEl = document.getElementById(boxId);
+        if (!ad || !textEl || !linkEl || !boxEl) return;
+        textEl.textContent = ad.title;
+        linkEl.href = ad.url;
+        boxEl.style.display = 'block';
+    }
+
+    if (top.length) {
+        const ad = pick(top);
+        if (context === 'lobby') inject(ad,'lobbyAdTopText','lobbyAdTopLink','lobbyAdTop');
+        if (context === 'game') inject(ad,'gameAdTopText','gameAdTopLink','gameAdTop');
+        if (context === 'spectator') inject(ad,'spectatorAdTopText','spectatorAdTopLink','spectatorAdTop');
+    }
+    if (side.length) {
+        const ad = pick(side);
+        if (context === 'game') inject(ad,'gameAdSideText','gameAdSideLink','gameAdSide');
+        if (context === 'spectator') inject(ad,'spectatorAdSideText','spectatorAdSideLink','spectatorAdSide');
+    }
+}
+
+/* ================= MATCHMAKING ================= */
+function startTargetGame() {
+    currentGameType = 'target';
+    findMatch();
+}
+function startBoxGame() {
+    currentGameType = 'box';
+    findMatch();
+}
+function findMatch() {
+    document.getElementById('matchmakingBtn').style.display = 'none';
+    document.getElementById('searchingState').style.display = 'block';
+
+    socket.emit("joinQueue", { username: currentUser, gameType: currentGameType });
+}
+function cancelSearch() {
+    socket.emit("leaveQueue");
+    document.getElementById('matchmakingBtn').style.display = 'block';
+    document.getElementById('searchingState').style.display = 'none';
+}
+
+/* ================= MATCH FOUND ================= */
+socket.on("matchFound", data => {
+    matchId = data.matchId;
+    isPlayer1 = data.isPlayer1;
+    opponentName = data.opponent;
+
+    document.getElementById('gameYourName').textContent = currentUser;
+    document.getElementById('gameOppName').textContent = opponentName;
+
+    showPage('gamePage');
+    loadAds('game');
+    startGame();
+});
+
+/* ================= GAME ================= */
+function startGame() {
+    gameActive = true;
+    score = 0;
+    opponentScore = 0;
+    gameTime = 60;
+
+    gameYourScore.textContent = score;
+    gameOppScore.textContent = opponentScore;
+    gameTimer.textContent = gameTime;
+
+    gameInterval = setInterval(() => {
+        gameTime--;
+        gameTimer.textContent = gameTime;
+        if (gameTime <= 0) endGame();
+    },1000);
+
+    gameCanvas.innerHTML = '';
+
+    if (currentGameType==='target') spawnTarget();
+    if (currentGameType==='box') spawnBox();
+}
+
+/* ================= TARGET GAME ================= */
+function spawnTarget() {
+    if(!gameActive) return;
+    const t=document.createElement('div');
+    t.className='target';
+    t.textContent='+1';
+    t.style.left=Math.random()*(gameCanvas.clientWidth-60)+'px';
+    t.style.top=Math.random()*(gameCanvas.clientHeight-60)+'px';
+
+    t.onclick = ()=>{
+        score++;
+        gameYourScore.textContent=score;
+        socket.emit("scoreUpdate",{matchId,score,time:gameTime});
+        t.remove();
+        spawnTarget();
+    };
+
+    gameCanvas.appendChild(t);
+    setTimeout(()=>{ if(t.parentNode){ t.remove(); spawnTarget(); } },2000);
+}
+
+/* ================= BOX GAME ================= */
+function spawnBox() {
+    if(!gameActive) return;
+    const box=document.createElement('div');
+    box.className='target';
+    box.textContent='+1';
+    box.style.left=Math.random()*(gameCanvas.clientWidth-60)+'px';
+    box.style.top=Math.random()*(gameCanvas.clientHeight-60)+'px';
+
+    box.onclick = ()=>{
+        score++;
+        gameYourScore.textContent=score;
+        socket.emit("scoreUpdate",{matchId,score,time:gameTime});
+        box.remove();
+        spawnBox();
+    };
+
+    gameCanvas.appendChild(box);
+    setTimeout(()=>box.remove(),2500);
+}
+
+/* ================= LIVE UPDATES ================= */
+socket.on("matchUpdate", data=>{
+    const myId=socket.id;
+    const oppId=Object.keys(data.scores).find(id=>id!==myId);
+
+    opponentScore = data.scores[oppId];
+    gameOppScore.textContent = opponentScore;
+    gameTimer.textContent = data.time;
+});
+
+/* ================= END GAME ================= */
+function endGame(){
+    gameActive=false;
+    clearInterval(gameInterval);
+
+    finalYourScore.textContent=score;
+    finalOppScore.textContent=opponentScore;
+    winnerText.textContent=score>opponentScore?'You Win!':score<opponentScore?'You Lose!':'Draw!';
+    gameOverOverlay.style.display='flex';
+}
+function returnToLobby(){
+    gameOverOverlay.style.display='none';
+    showPage('lobbyPage');
+}
+
+/* ================= QUIT ================= */
+function quitGame(){
+    if(matchId) socket.emit("leaveMatch",{matchId});
+    clearInterval(gameInterval);
+    gameCanvas.innerHTML='';
+    showPage('lobbyPage');
+}
+socket.on("matchEnded",()=>{ quitGame(); });
+
+/* ================= LIVE MATCHES ================= */
+function loadLiveMatches() {
+    // request live matches from server
+    socket.emit("requestLiveMatches");
+}
+
+socket.on("liveMatches", matches => {
+    const list = document.getElementById('matchesList');
+    if (!list) return;
+
+    if (!matches.length) {
+        list.innerHTML = `<div style="text-align:center;color:#aaa;padding:40px 20px;">No active matches</div>`;
+        return;
+    }
+
+    list.innerHTML = '';
+    matches.forEach(match => {
+        const div = document.createElement('div');
+        div.className = 'match-item';
+        div.innerHTML = `
+            <div class="match-players">${match.players[0]} vs ${match.players[1]}</div>
+            <div class="match-score">${match.scores[match.players[0]]} : ${match.scores[match.players[1]]}</div>
+            <div class="match-time">⏱ ${match.time}s</div>
         `;
+        div.onclick = () => spectateMatch(match.id);
+        list.appendChild(div);
+    });
+});
 
-                adsList.appendChild(div);
-            });
-        }
-        function loadLiveMatches() {
-            const list = document.getElementById('matchesList');
-            if (!list) return;
+/* ================= SPECTATE MATCH ================= */
+function spectateMatch(matchId) {
+    spectatingMatchId = matchId;
+    socket.emit("joinSpectate", { matchId });
 
-            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
+    document.getElementById('spectateEmpty').style.display = 'none';
+    document.getElementById('spectateActive').style.display = 'block';
+}
 
-            if (!matches.length) {
-                list.innerHTML = `
-            <div style="text-align:center;color:#aaa;padding:40px 20px;">
-                No active matches
-            </div>
-        `;
-                return;
-            }
+/* ================= SPECTATOR LIVE UPDATES ================= */
+socket.on("spectateUpdate", match => {
+    if (match.id !== spectatingMatchId) return;
 
-            list.innerHTML = '';
+    // Update UI
+    specPlayer1Name.textContent = match.players[0];
+    specPlayer2Name.textContent = match.players[1];
+    specPlayer1Score.textContent = match.scores[match.players[0]];
+    specPlayer2Score.textContent = match.scores[match.players[1]];
+    specTimer.textContent = match.time;
 
-            matches.forEach((m, index) => {
-                const div = document.createElement('div');
-                div.className = 'match-item';
+    specWatchingNames.textContent = `${match.players[0]} vs ${match.players[1]}`;
+});
 
-                div.innerHTML = `
-            <div class="match-players">${m.player1} vs ${m.player2}</div>
-            <div class="match-score">${m.score1} : ${m.score2}</div>
-            <div class="match-time">⏱ ${m.time}s</div>
-        `;
+/* ================= STOP SPECTATING ================= */
+function stopSpectate() {
+    if (spectatingMatchId) {
+        socket.emit("leaveSpectate", { matchId: spectatingMatchId });
+        spectatingMatchId = null;
+    }
+    document.getElementById('spectateActive').style.display = 'none';
+    document.getElementById('spectateEmpty').style.display = 'block';
+    loadLiveMatches(); // reload available matches
+}
 
-                div.onclick = () => spectateMatch(m.matchId);
-                list.appendChild(div);
-            });
-        }
-        function spectateMatch(matchId) {
-            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-            const match = matches.find(m => m.matchId === matchId);
-            if (!match) return;
+/* ================= TOURNAMENTS ================= */
+function loadTournaments(){
+    const tournaments=JSON.parse(localStorage.getItem('tournaments')||'[]');
+    const list=document.getElementById('tournamentsListBottom');
+    if(!tournaments.length){
+        list.innerHTML='<div style="text-align:center;color:#aaa;padding:20px;"><div style="font-size:48px;margin-bottom:10px;">🏆</div>No tournaments available</div>';
+        return;
+    }
+    list.innerHTML='';
+    tournaments.forEach(t=>{
+        const now=Date.now();
+        const startTime=new Date(t.startDate).getTime();
+        let status='upcoming', statusText='Upcoming', canWatch=false;
+        if(t.status==='live'||now>=startTime){status='live';statusText='🔴 LIVE';canWatch=true;}
 
-            document.getElementById('spectateEmpty').style.display = 'none';
-            document.getElementById('spectateActive').style.display = 'block';
-
-            specPlayer1Name.textContent = match.player1;
-            specPlayer2Name.textContent = match.player2;
-            specPlayer1Score.textContent = match.score1;
-            specPlayer2Score.textContent = match.score2;
-            specTimer.textContent = match.time;
-
-            specWatchingNames.textContent = `${match.player1} vs ${match.player2}`;
-        }
-        function goToTournamentRegistration() {
-            window.location.href = 'player_tournament_page.html';
-        }
-
-        function loadTournaments() {
-            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
-            const list = document.getElementById('tournamentsListBottom'); // Changed ID
-
-            if (!tournaments.length) {
-                list.innerHTML = `
-            <div style="text-align: center; color: #aaa; padding: 20px;">
-                <div style="font-size: 48px; margin-bottom: 10px;">🏆</div>
-                <div>No tournaments available</div>
-            </div>
-        `;
-                return;
-            }
-
-            list.innerHTML = '';
-
-            tournaments.forEach(tournament => {
-                const now = Date.now();
-                const startTime = new Date(tournament.startDate).getTime();
-
-                let status = 'upcoming';
-                let statusText = 'Upcoming';
-                let canWatch = false;
-
-                if (tournament.status === 'live' || (now >= startTime)) {
-                    status = 'live';
-                    statusText = '🔴 LIVE';
-                    canWatch = true;
-                }
-
-                const div = document.createElement('div');
-                div.className = 'tournament-item';
-
-                div.innerHTML = `
+        const div=document.createElement('div');
+        div.className='tournament-item';
+        div.innerHTML=`
             <div class="tournament-header">
-                <div class="tournament-title">🏆 ${tournament.name}</div>
+                <div class="tournament-title">🏆 ${t.name}</div>
                 <span class="tournament-status ${status}">${statusText}</span>
             </div>
-            <div class="tournament-info">
-                📅 ${new Date(tournament.startDate).toLocaleDateString()} 
-                ${new Date(tournament.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
-            <div class="tournament-info">
-                🎮 ${tournament.gameType || 'Target Game'}
-            </div>
-            <div class="tournament-info">
-                👥 ${tournament.participants?.length || 0}/${tournament.maxParticipants} participants
-            </div>
-            <button class="btn-watch" 
-                    onclick="watchTournament('${tournament.id}')" 
-                    ${!canWatch ? 'disabled' : ''}>
-                ${status === 'live' ? '👁️ Watch Now' : '⏰ Not Started'}
-            </button>
+            <div class="tournament-info">📅 ${new Date(t.startDate).toLocaleDateString()} ${new Date(t.startDate).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+            <div class="tournament-info">🎮 ${t.gameType||'Target Game'}</div>
+            <div class="tournament-info">👥 ${t.participants?.length||0}/${t.maxParticipants} participants</div>
+            <button class="btn-watch" onclick="watchTournament('${t.id}')" ${!canWatch?'disabled':''}>${status==='live'?'👁️ Watch Now':'⏰ Not Started'}</button>
         `;
+        list.appendChild(div);
+    });
+}
 
-                list.appendChild(div);
-            });
-        }
+function watchTournament(id){
+    const tournaments=JSON.parse(localStorage.getItem('tournaments')||'[]');
+    const t=tournaments.find(x=>x.id===id);
+    if(!t) return;
+    alert(`Watching: ${t.name}\nParticipants: ${t.participants?.length||0}\nStatus: ${t.status||'upcoming'}`);
+}
 
-        function watchTournament(tournamentId) {
-            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
-            const tournament = tournaments.find(t => t.id === tournamentId);
+/* ================= SAMPLE TOURNAMENT DATA ================= */
+function createSampleTournaments(){
+    const tournaments=[
+        {id:'tournament_1', name:'Winter Championship 2026', startDate:new Date(Date.now()+24*60*60*1000).toISOString(), gameType:'Target Game', maxParticipants:16, participants:['Player1','Player2','Player3'], status:'upcoming'},
+        {id:'tournament_2', name:'Weekly Arena Cup', startDate:new Date().toISOString(), gameType:'Box Game', maxParticipants:8, participants:['Alice','Bob','Charlie','David'], status:'live'}
+    ];
+    localStorage.setItem('tournaments',JSON.stringify(tournaments));
+}
+createSampleTournaments();
+</script>
 
-            if (!tournament) return;
-
-            alert(`Watching: ${tournament.name}\nParticipants: ${tournament.participants?.length || 0}\nStatus: ${tournament.status || 'upcoming'}`);
-
-            // You can add more viewing logic here
-        }
-
-        // Sample tournament data (for testing)
-        function createSampleTournaments() {
-            const tournaments = [
-                {
-                    id: 'tournament_1',
-                    name: 'Winter Championship 2026',
-                    startDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                    gameType: 'Target Game',
-                    maxParticipants: 16,
-                    participants: ['Player1', 'Player2', 'Player3'],
-                    status: 'upcoming'
-                },
-                {
-                    id: 'tournament_2',
-                    name: 'Weekly Arena Cup',
-                    startDate: new Date().toISOString(),
-                    gameType: 'Box Game',
-                    maxParticipants: 8,
-                    participants: ['Alice', 'Bob', 'Charlie', 'David'],
-                    status: 'live'
-                }
-            ];
-
-            localStorage.setItem('tournaments', JSON.stringify(tournaments));
-        }
-
-        // Uncomment to create sample data
-        createSampleTournaments();
-
-        function cancelSearch() {
-            socket.emit("leaveQueue");
-
-            document.getElementById('matchmakingBtn').style.display = 'block';
-            document.getElementById('searchingState').style.display = 'none';
-        }
-        socket.on("matchFound", data => {
-            /*
-              data = {
-                matchId,
-                opponent,
-                isPlayer1
-              }
-            */
-
-            clearInterval(searchInterval);
-
-            startMatch(
-                data.opponent,
-                data.matchId,
-                data.isPlayer1
-            );
-        });
-
-    </script>
 
 
 </body>

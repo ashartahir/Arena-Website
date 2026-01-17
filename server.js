@@ -150,6 +150,58 @@ io.on("connection", (socket) => {
   });
 });
 
+// ---- Spectator Rooms ----
+const spectators = {}; // matchId -> Set of socketIds
+
+io.on("connection", (socket) => {
+  // ... existing code
+
+  // Spectator joins a match room
+  socket.on("joinSpectate", ({ matchId }) => {
+    if (!spectators[matchId]) spectators[matchId] = new Set();
+    spectators[matchId].add(socket.id);
+    socket.join(`spectate_${matchId}`);
+    console.log(`Spectator ${socket.id} joined match ${matchId}`);
+  });
+
+  socket.on("leaveSpectate", ({ matchId }) => {
+    if (spectators[matchId]) spectators[matchId].delete(socket.id);
+    socket.leave(`spectate_${matchId}`);
+  });
+
+  // When a player's score updates, notify spectators too
+  socket.on("scoreUpdate", ({ matchId, score, time }) => {
+    const match = activeMatches[matchId];
+    if (!match) return;
+
+    // Update the player score
+    const playerName = Object.keys(match.scores).find(name => name !== match.players.find(p => p !== socket.id));
+    match.scores[socket.id] = score;
+    match.time = time;
+
+    // Send update to both players
+    match.players.forEach(p => {
+      io.to(p.socketId).emit("matchUpdate", match);
+    });
+
+    // Send update to spectators
+    io.to(`spectate_${matchId}`).emit("spectateUpdate", match);
+  });
+
+  // Send all live matches to spectators on request
+  socket.on("requestLiveMatches", () => {
+    const liveMatches = Object.values(activeMatches).filter(m => m.status === "ongoing");
+    socket.emit("liveMatches", liveMatches);
+  });
+
+  socket.on("disconnect", () => {
+    // remove from spectator lists
+    for (const matchId in spectators) {
+      spectators[matchId].delete(socket.id);
+    }
+  });
+});
+
 /* ================= SERVER START ================= */
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
