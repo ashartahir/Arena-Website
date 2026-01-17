@@ -130,90 +130,89 @@ io.on("connection", (socket) => {
       players: Object.values(match.players),
       time: match.time
     });
-  });
 
-
-  // Update spectators
-  if (spectators[matchId]) {
-    io.to(`spectate_${matchId}`).emit("spectateUpdate", {
-      id: matchId,
-      scores: Object.fromEntries(
-        Object.entries(match.players).map(([sid, name]) => [name, match.scores[sid] || 0])
-      ),
-      players: Object.values(match.players),
-      time: match.time
-    });
-  }
-});
-
-/* ================= LEAVE MATCH ================= */
-socket.on("leaveMatch", ({ matchId }) => {
-  const match = activeMatches[matchId];
-  if (!match) return;
-
-  io.to(matchId).emit("matchEnded", {
-    scores: match.scores,
-    players: match.players
-  });
-
-  // Remove match
-  delete activeMatches[matchId];
-
-  // Remove all players from the room
-  Object.keys(match.players).forEach(id => {
-    io.sockets.sockets.get(id)?.leave(matchId);
-  });
-});
-
-/* ================= SPECTATOR ================= */
-socket.on("joinSpectate", ({ matchId }) => {
-  if (!spectators[matchId]) spectators[matchId] = new Set();
-  spectators[matchId].add(socket.id);
-  socket.join(`spectate_${matchId}`);
-  console.log(`Spectator ${socket.id} joined match ${matchId}`);
-});
-
-socket.on("leaveSpectate", ({ matchId }) => {
-  if (spectators[matchId]) spectators[matchId].delete(socket.id);
-  socket.leave(`spectate_${matchId}`);
-});
-
-socket.on("requestLiveMatches", () => {
-  const liveMatches = Object.values(activeMatches)
-    .filter(m => m.status === "ongoing")
-    .map(m => ({
-      id: m.matchId,
-      players: Object.values(m.players),
-      scores: Object.fromEntries(
-        Object.entries(m.players).map(([id, name]) => [name, m.scores[id] || 0])
-      ),
-      time: m.time
-    }));
-  socket.emit("liveMatches", liveMatches);
-});
-
-/* ================= DISCONNECT ================= */
-socket.on("disconnect", () => {
-  console.log("Client disconnected:", socket.id);
-
-  // Remove from queue
-  matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
-
-  // Remove from spectators
-  for (const matchId in spectators) {
-    spectators[matchId].delete(socket.id);
-  }
-
-  // End matches if a player disconnects
-  for (const matchId in activeMatches) {
-    if (activeMatches[matchId].players[socket.id]) {
-      io.to(matchId).emit("matchEnded", {
-        scores: activeMatches[matchId].scores,
-        players: activeMatches[matchId].players
+    // Update spectators if any
+    if (spectators[matchId]) {
+      io.to(`spectate_${matchId}`).emit("spectateUpdate", {
+        id: matchId,
+        scores: Object.fromEntries(
+          Object.entries(match.players).map(([sid, name]) => [name, match.scores[sid] || 0])
+        ),
+        players: Object.values(match.players),
+        time: match.time
       });
-      delete activeMatches[matchId];
     }
-  }
+  });
+
+  /* ================= LEAVE MATCH ================= */
+  socket.on("leaveMatch", ({ matchId }) => {
+    const match = activeMatches[matchId];
+    if (!match) return;
+
+    io.to(matchId).emit("matchEnded", {
+      scores: match.scores,
+      players: match.players
+    });
+
+    // Remove match
+    delete activeMatches[matchId];
+
+    // Remove all players from the room
+    Object.keys(match.players).forEach(id => {
+      io.sockets.sockets.get(id)?.leave(matchId);
+    });
+  });
+
+  /* ================= SPECTATOR ================= */
+  socket.on("joinSpectate", ({ matchId }) => {
+    if (!spectators[matchId]) spectators[matchId] = new Set();
+    spectators[matchId].add(socket.id);
+    socket.join(`spectate_${matchId}`);
+    console.log(`Spectator ${socket.id} joined match ${matchId}`);
+  });
+
+  socket.on("leaveSpectate", ({ matchId }) => {
+    if (spectators[matchId]) spectators[matchId].delete(socket.id);
+    socket.leave(`spectate_${matchId}`);
+  });
+
+  socket.on("requestLiveMatches", () => {
+    const liveMatches = Object.values(activeMatches)
+      .filter(m => m.status === "ongoing")
+      .map(m => ({
+        id: m.matchId,
+        players: Object.values(m.players),
+        scores: Object.fromEntries(
+          Object.entries(m.players).map(([id, name]) => [name, m.scores[id] || 0])
+        ),
+        time: m.time
+      }));
+    socket.emit("liveMatches", liveMatches);
+  });
+
+  /* ================= DISCONNECT ================= */
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+
+    // Remove from queue
+    matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
+
+    // Remove from spectators
+    for (const matchId in spectators) {
+      spectators[matchId].delete(socket.id);
+    }
+
+    // End matches if a player disconnects
+    for (const matchId in activeMatches) {
+      if (activeMatches[matchId].players[socket.id]) {
+        io.to(matchId).emit("matchEnded", {
+          scores: activeMatches[matchId].scores,
+          players: activeMatches[matchId].players
+        });
+        delete activeMatches[matchId];
+      }
+    }
+  });
 });
 
 /* ================= SERVER START ================= */
