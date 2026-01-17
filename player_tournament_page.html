@@ -211,9 +211,12 @@
         }
 
         @keyframes pulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 opacity: 1;
             }
+
             50% {
                 opacity: 0.6;
             }
@@ -423,7 +426,11 @@
 
         <div class="tournaments-grid" id="tournamentsGrid"></div>
     </div>
-
+    </script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io("http://localhost:3000"); // replace later with live URL
+    </script>
     <script>
         const currentUser = localStorage.getItem('currentUser');
 
@@ -438,12 +445,10 @@
         });
 
         function loadTournaments() {
-            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
-            applyFilters();
+            socket.emit("getTournaments");
         }
 
         function applyFilters() {
-            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
             const statusFilter = document.getElementById('filterStatus').value;
             const gameFilter = document.getElementById('filterGame').value;
             const sortBy = document.getElementById('sortBy').value;
@@ -451,7 +456,7 @@
             let filtered = tournaments.filter(tournament => {
                 const now = Date.now();
                 const startTime = new Date(tournament.startDate).getTime();
-                
+
                 let status = tournament.status || 'upcoming';
                 if (now >= startTime && status !== 'completed') {
                     status = 'live';
@@ -465,15 +470,18 @@
                 return true;
             });
 
-            // Sort
+            // Sorting
             filtered.sort((a, b) => {
                 if (sortBy === 'date-asc') {
                     return new Date(a.startDate) - new Date(b.startDate);
-                } else if (sortBy === 'date-desc') {
+                }
+                if (sortBy === 'date-desc') {
                     return new Date(b.startDate) - new Date(a.startDate);
-                } else if (sortBy === 'participants') {
+                }
+                if (sortBy === 'participants') {
                     return (b.participants?.length || 0) - (a.participants?.length || 0);
-                } else if (sortBy === 'spots') {
+                }
+                if (sortBy === 'spots') {
                     const spotsA = a.maxParticipants - (a.participants?.length || 0);
                     const spotsB = b.maxParticipants - (b.participants?.length || 0);
                     return spotsB - spotsA;
@@ -657,6 +665,7 @@
             document.getElementById('liveTournaments').textContent = live;
         }
     </script>
+
 </body>
 
 </html>
