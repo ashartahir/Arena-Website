@@ -20,6 +20,7 @@ app.use(express.json());
 let tournaments = [];
 let matchQueue = [];           // waiting players
 let activeMatches = {};        // matchId → match object
+const spectators = {};         // matchId → Set of socketIds
 
 /* ================= ROUTES ================= */
 app.get("/", (req, res) => {
@@ -30,7 +31,7 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 
-  /* -------- TOURNAMENTS -------- */
+  /* ================= TOURNAMENTS ================= */
   socket.on("createTournament", (tournament) => {
     tournaments.push(tournament);
     io.emit("tournamentsUpdate", tournaments);
@@ -57,7 +58,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  /* -------- MATCHMAKING -------- */
+  /* ================= MATCHMAKING ================= */
   socket.on("joinQueue", ({ username, gameType }) => {
     socket.username = username;
     socket.gameType = gameType;
@@ -111,7 +112,7 @@ io.on("connection", (socket) => {
     matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
   });
 
-  /* -------- REAL-TIME SCORE SYNC -------- */
+  /* ================= REAL-TIME SCORE SYNC ================= */
   socket.on("scoreUpdate", ({ matchId, score, time }) => {
     const match = activeMatches[matchId];
     if (!match) return;
@@ -119,44 +120,48 @@ io.on("connection", (socket) => {
     match.scores[socket.id] = score;
     match.time = time;
 
-    io.to(matchId).emit("matchUpdate", {
+    // Update players
+    Object.keys(match.players).forEach(playerSocketId => {
+      io.to(playerSocketId).emit("matchUpdate", {
+        scores: match.scores,
+        players: Object.values(match.players),
+        time: match.time
+      });
+    });
+
+    // Update spectators
+    if (spectators[matchId]) {
+      io.to(`spectate_${matchId}`).emit("spectateUpdate", {
+        id: matchId,
+        scores: Object.fromEntries(
+          Object.entries(match.players).map(([sid, name]) => [name, match.scores[sid] || 0])
+        ),
+        players: Object.values(match.players),
+        time: match.time
+      });
+    }
+  });
+
+  /* ================= LEAVE MATCH ================= */
+  socket.on("leaveMatch", ({ matchId }) => {
+    const match = activeMatches[matchId];
+    if (!match) return;
+
+    io.to(matchId).emit("matchEnded", {
       scores: match.scores,
-      players: match.players,
-      time: match.time
+      players: match.players
+    });
+
+    // Remove match
+    delete activeMatches[matchId];
+
+    // Remove all players from the room
+    Object.keys(match.players).forEach(id => {
+      io.sockets.sockets.get(id)?.leave(matchId);
     });
   });
 
-  /* -------- LEAVE MATCH -------- */
-  socket.on("leaveMatch", ({ matchId }) => {
-    if (!activeMatches[matchId]) return;
-
-    io.to(matchId).emit("matchEnded");
-    delete activeMatches[matchId];
-    socket.leave(matchId);
-  });
-
-  /* -------- DISCONNECT -------- */
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
-
-    matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
-
-    for (const matchId in activeMatches) {
-      if (activeMatches[matchId].players[socket.id]) {
-        io.to(matchId).emit("matchEnded");
-        delete activeMatches[matchId];
-      }
-    }
-  });
-});
-
-// ---- Spectator Rooms ----
-const spectators = {}; // matchId -> Set of socketIds
-
-io.on("connection", (socket) => {
-  // ... existing code
-
-  // Spectator joins a match room
+  /* ================= SPECTATOR ================= */
   socket.on("joinSpectate", ({ matchId }) => {
     if (!spectators[matchId]) spectators[matchId] = new Set();
     spectators[matchId].add(socket.id);
@@ -169,35 +174,41 @@ io.on("connection", (socket) => {
     socket.leave(`spectate_${matchId}`);
   });
 
-  // When a player's score updates, notify spectators too
-  socket.on("scoreUpdate", ({ matchId, score, time }) => {
-    const match = activeMatches[matchId];
-    if (!match) return;
-
-    // Update the player score
-    const playerName = Object.keys(match.scores).find(name => name !== match.players.find(p => p !== socket.id));
-    match.scores[socket.id] = score;
-    match.time = time;
-
-    // Send update to both players
-    match.players.forEach(p => {
-      io.to(p.socketId).emit("matchUpdate", match);
-    });
-
-    // Send update to spectators
-    io.to(`spectate_${matchId}`).emit("spectateUpdate", match);
-  });
-
-  // Send all live matches to spectators on request
   socket.on("requestLiveMatches", () => {
-    const liveMatches = Object.values(activeMatches).filter(m => m.status === "ongoing");
+    const liveMatches = Object.values(activeMatches)
+      .filter(m => m.status === "ongoing")
+      .map(m => ({
+        id: m.matchId,
+        players: Object.values(m.players),
+        scores: Object.fromEntries(
+          Object.entries(m.players).map(([id, name]) => [name, m.scores[id] || 0])
+        ),
+        time: m.time
+      }));
     socket.emit("liveMatches", liveMatches);
   });
 
+  /* ================= DISCONNECT ================= */
   socket.on("disconnect", () => {
-    // remove from spectator lists
+    console.log("Client disconnected:", socket.id);
+
+    // Remove from queue
+    matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
+
+    // Remove from spectators
     for (const matchId in spectators) {
       spectators[matchId].delete(socket.id);
+    }
+
+    // End matches if a player disconnects
+    for (const matchId in activeMatches) {
+      if (activeMatches[matchId].players[socket.id]) {
+        io.to(matchId).emit("matchEnded", {
+          scores: activeMatches[matchId].scores,
+          players: activeMatches[matchId].players
+        });
+        delete activeMatches[matchId];
+      }
     }
   });
 });
