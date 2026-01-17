@@ -5,9 +5,10 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
-    origin: "*", // allow all origins (or restrict to your domain)
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -15,31 +16,29 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// ---- In-memory storage ----
+/* ================= IN-MEMORY STORAGE ================= */
 let tournaments = [];
-let matchQueue = []; // waiting players
-let activeMatches = {}; // matchId -> { players, scores, status }
+let matchQueue = [];           // waiting players
+let activeMatches = {};        // matchId → match object
 
-// ---- Routes ----
+/* ================= ROUTES ================= */
 app.get("/", (req, res) => {
   res.send("Socket server running");
 });
 
-// ---- Socket.IO ----
+/* ================= SOCKET.IO ================= */
 io.on("connection", (socket) => {
-  console.log(`New client connected: ${socket.id}`);
+  console.log("Client connected:", socket.id);
 
-  // --- Tournament Management ---
+  /* -------- TOURNAMENTS -------- */
   socket.on("createTournament", (tournament) => {
     tournaments.push(tournament);
     io.emit("tournamentsUpdate", tournaments);
-    console.log("Tournament created:", tournament.name);
   });
 
   socket.on("deleteTournament", (tournamentId) => {
     tournaments = tournaments.filter(t => t.id !== tournamentId);
     io.emit("tournamentsUpdate", tournaments);
-    console.log("Tournament deleted:", tournamentId);
   });
 
   socket.on("registerTournament", ({ tournamentId, username }) => {
@@ -58,33 +57,53 @@ io.on("connection", (socket) => {
     }
   });
 
-  // --- Multiplayer Queue ---
+  /* -------- MATCHMAKING -------- */
   socket.on("joinQueue", ({ username, gameType }) => {
-    console.log(`${username} joined queue for ${gameType}`);
+    socket.username = username;
+    socket.gameType = gameType;
+
     matchQueue.push({ socketId: socket.id, username, gameType });
 
-    // Try to match players
-    const sameTypePlayers = matchQueue.filter(p => p.gameType === gameType);
-    if (sameTypePlayers.length >= 2) {
-      const player1 = sameTypePlayers[0];
-      const player2 = sameTypePlayers[1];
+    const sameType = matchQueue.filter(p => p.gameType === gameType);
+    if (sameType.length >= 2) {
+      const p1 = sameType[0];
+      const p2 = sameType[1];
 
       const matchId = "match_" + Date.now();
-      const matchData = {
-        id: matchId,
-        players: [player1.username, player2.username],
-        scores: { [player1.username]: 0, [player2.username]: 0 },
+
+      activeMatches[matchId] = {
+        matchId,
+        gameType,
+        players: {
+          [p1.socketId]: p1.username,
+          [p2.socketId]: p2.username
+        },
+        scores: {
+          [p1.socketId]: 0,
+          [p2.socketId]: 0
+        },
+        time: 60,
         status: "ongoing"
       };
 
-      activeMatches[matchId] = matchData;
+      io.sockets.sockets.get(p1.socketId)?.join(matchId);
+      io.sockets.sockets.get(p2.socketId)?.join(matchId);
 
-      // Notify both players
-      io.to(player1.socketId).emit("matchFound", { opponent: player2.username, matchId, isPlayer1: true });
-      io.to(player2.socketId).emit("matchFound", { opponent: player1.username, matchId, isPlayer1: false });
+      io.to(p1.socketId).emit("matchFound", {
+        matchId,
+        opponent: p2.username,
+        isPlayer1: true
+      });
 
-      // Remove from queue
-      matchQueue = matchQueue.filter(p => p.socketId !== player1.socketId && p.socketId !== player2.socketId);
+      io.to(p2.socketId).emit("matchFound", {
+        matchId,
+        opponent: p1.username,
+        isPlayer1: false
+      });
+
+      matchQueue = matchQueue.filter(
+        p => p.socketId !== p1.socketId && p.socketId !== p2.socketId
+      );
     }
   });
 
@@ -92,24 +111,46 @@ io.on("connection", (socket) => {
     matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
   });
 
-  // --- Match Updates ---
-  socket.on("updateScore", ({ matchId, username, score }) => {
+  /* -------- REAL-TIME SCORE SYNC -------- */
+  socket.on("scoreUpdate", ({ matchId, score, time }) => {
     const match = activeMatches[matchId];
-    if (match) {
-      match.scores[username] = score;
-      io.to(matchId).emit("matchUpdate", match);
-    }
+    if (!match) return;
+
+    match.scores[socket.id] = score;
+    match.time = time;
+
+    io.to(matchId).emit("matchUpdate", {
+      scores: match.scores,
+      players: match.players,
+      time: match.time
+    });
   });
 
+  /* -------- LEAVE MATCH -------- */
+  socket.on("leaveMatch", ({ matchId }) => {
+    if (!activeMatches[matchId]) return;
+
+    io.to(matchId).emit("matchEnded");
+    delete activeMatches[matchId];
+    socket.leave(matchId);
+  });
+
+  /* -------- DISCONNECT -------- */
   socket.on("disconnect", () => {
-    console.log(`Client disconnected: ${socket.id}`);
+    console.log("Client disconnected:", socket.id);
+
     matchQueue = matchQueue.filter(p => p.socketId !== socket.id);
 
-    // Optional: mark active matches for disconnection
+    for (const matchId in activeMatches) {
+      if (activeMatches[matchId].players[socket.id]) {
+        io.to(matchId).emit("matchEnded");
+        delete activeMatches[matchId];
+      }
+    }
   });
 });
 
-// ---- Server Start ----
+/* ================= SERVER START ================= */
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

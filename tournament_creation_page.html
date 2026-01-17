@@ -777,7 +777,7 @@
         }
     </script>
     <script>
-        const socket = io("http://localhost:3000");
+        const socket = io("http://localhost:3000/");
 
         socket.on("tournamentsUpdate", tournaments => {
             localStorage.setItem("tournaments", JSON.stringify(tournaments));

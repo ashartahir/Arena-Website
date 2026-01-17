@@ -931,21 +931,19 @@
             </div>
         </div>
     </div>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>
-        const socket = io("http://localhost:3000");
-        // later replace with live server URL
-    </script>
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
 
     <script>
+          /* ================= SOCKET ================= */
+        const socket = io("http://localhost:3000");
         console.log('Dashboard loaded');
+
         const session = JSON.parse(localStorage.getItem('session') || '{}');
         console.log('Session:', session);
 
         if (!session.user) {
             document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
         }
-
 
         /* ================= GLOBAL CONSTANTS ================= */
         const SESSION_DURATION = 30 * 60 * 1000; // 30 min session
@@ -956,58 +954,14 @@
             setupActivityListener();
         });
 
-        /* ================= SESSION HANDLING ================= */
-        function setupActivityListener() {
-            ['click', 'mousemove', 'keydown'].forEach(evt => {
-                document.addEventListener(evt, refreshSession);
-            });
-        }
-
-        function refreshSession() {
-            const session = JSON.parse(localStorage.getItem('session') || '{}');
-            if (!session.user) return;
-            session.expiresAt = Date.now() + SESSION_DURATION;
-            localStorage.setItem('session', JSON.stringify(session));
-        }
-
-        function checkSession() {
-            const session = JSON.parse(localStorage.getItem('session') || '{}');
-            if (!session.user || Date.now() > session.expiresAt) {
-                localStorage.clear();
-                window.location.href = 'index.html';
-                return false;
-            }
-            return true;
-        }
-
-        /* ================= GLOBAL STATE ================= */
-        let currentUser = localStorage.getItem('currentUser');
-        let currentRole = localStorage.getItem('currentRole');
-        let matchId = null;
-        let opponentName = '';
-        let gameActive = false;
-        let score = 0;
-        let opponentScore = 0;
-        let gameTime = 60;
-        let gameInterval = null;
-        let updateInterval = null;
-        let searchInterval = null;
-        let spectateInterval = null;
-        let isPlayer1 = false;
-
-        /* ================= PAGE CONTROL ================= */
-        function showPage(id) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            const el = document.getElementById(id);
-            if (el) el.classList.add('active');
-        }
-
         /* ================= LOGOUT ================= */
         function logout() {
-            clearInterval(gameInterval);
-            clearInterval(updateInterval);
-            clearInterval(searchInterval);
-            clearInterval(spectateInterval);
+            clearInterval(gameInterval); // ✅ still valid (game timer)
+
+            // 🔥 NEW: leave match safely if connected
+            if (typeof socket !== 'undefined' && matchId) {
+                socket.emit("leaveMatch", { matchId });
+            }
 
             // ❗ Remove ONLY auth/session data
             localStorage.removeItem('currentUser');
@@ -1015,52 +969,13 @@
             localStorage.removeItem('isLoggedIn');
             localStorage.removeItem('session');
 
-            // ❗ DO NOT TOUCH arenaAds / activeMatches
             window.location.href = 'index.html';
         }
 
-
+        /* ================= INTERVAL CLEANUP ================= */
         function clearIntervals() {
-            clearInterval(gameInterval);
-            clearInterval(updateInterval);
-            clearInterval(searchInterval);
-            clearInterval(spectateInterval);
-        }
-
-        /* ================= INITIALIZE PAGE ================= */
-        function initializePage() {
-            if (!currentUser || !currentRole || !checkSession()) {
-                window.location.href = 'index.html';
-                return;
-            }
-
-            // Player
-            if (currentRole === 'player') {
-                const el = document.getElementById('lobbyUsername');
-                if (el) el.textContent = currentUser;
-                showPage('lobbyPage');
-                loadAds('lobby');
-            }
-
-            // Spectator
-            if (currentRole === 'spectator') {
-                const el = document.getElementById('spectatorUsername');
-                if (el) el.textContent = currentUser;
-                showPage('spectatorPage');
-                loadAds('spectator');
-                loadLiveMatches();
-                loadTournaments(); // Add this line
-                spectateInterval = setInterval(() => {
-                    loadLiveMatches();
-                    loadTournaments(); // Add this line
-                }, 2000);
-            }
-
-            // Advertiser
-            if (currentRole === 'advertiser') {
-                window.location.href = 'admin_dashboard.html';
-                return;
-            }
+            clearInterval(gameInterval); // ✅ keep
+            // ❌ removed obsolete polling intervals
         }
 
         /* ================= ADS ================= */
@@ -1099,10 +1014,83 @@
             }
         }
 
-        /* ================= MATCHMAKING ================= */
-        let currentGameType = null; // "target" or "box"
+      
+        /* ================= SESSION ================= */
+        const SESSION_DURATION = 30 * 60 * 1000;
+        const session = JSON.parse(localStorage.getItem('session') || '{}');
+        if (!session.user) {
+            document.body.innerHTML = '<h1>No session found. Please log in.</h1>';
+        }
 
-        // Lobby selection
+        /* ================= GLOBAL STATE ================= */
+        let currentUser = localStorage.getItem('currentUser');
+        let currentRole = localStorage.getItem('currentRole');
+        let currentGameType = null;
+
+        let matchId = null;
+        let isPlayer1 = false;
+        let opponentName = '';
+
+        let gameActive = false;
+        let score = 0;
+        let opponentScore = 0;
+        let gameTime = 60;
+        let gameInterval = null;
+
+        /* ================= PAGE CONTROL ================= */
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id)?.classList.add('active');
+        }
+
+        /* ================= SESSION HANDLING ================= */
+        function refreshSession() {
+            const s = JSON.parse(localStorage.getItem('session') || '{}');
+            if (!s.user) return;
+            s.expiresAt = Date.now() + SESSION_DURATION;
+            localStorage.setItem('session', JSON.stringify(s));
+        }
+
+        ['click', 'mousemove', 'keydown'].forEach(evt =>
+            document.addEventListener(evt, refreshSession)
+        );
+
+        function checkSession() {
+            const s = JSON.parse(localStorage.getItem('session') || '{}');
+            if (!s.user || Date.now() > s.expiresAt) {
+                localStorage.clear();
+                window.location.href = 'index.html';
+                return false;
+            }
+            return true;
+        }
+
+        /* ================= INITIAL LOAD ================= */
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!currentUser || !currentRole || !checkSession()) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            if (currentRole === 'player') {
+                document.getElementById('lobbyUsername').textContent = currentUser;
+                showPage('lobbyPage');
+                loadAds('lobby');
+            }
+
+            if (currentRole === 'spectator') {
+                document.getElementById('spectatorUsername').textContent = currentUser;
+                showPage('spectatorPage');
+                loadAds('spectator');
+                loadTournaments();
+            }
+
+            if (currentRole === 'advertiser') {
+                window.location.href = 'admin_dashboard.html';
+            }
+        });
+
+        /* ================= MATCHMAKING ================= */
         function startTargetGame() {
             currentGameType = 'target';
             findMatch();
@@ -1114,11 +1102,8 @@
         }
 
         function findMatch() {
-            const btn = document.getElementById('matchmakingBtn');
-            const searchDiv = document.getElementById('searchingState');
-
-            if (btn) btn.style.display = 'none';
-            if (searchDiv) searchDiv.style.display = 'block';
+            document.getElementById('matchmakingBtn').style.display = 'none';
+            document.getElementById('searchingState').style.display = 'block';
 
             socket.emit("joinQueue", {
                 username: currentUser,
@@ -1126,37 +1111,25 @@
             });
         }
 
-
-        function checkForMatch() {
-            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-            const found = matches.find(m => m.matchId === matchId);
-            if (found) {
-                clearInterval(searchInterval);
-                startMatch(found.player2, matchId, true);
-            }
+        function cancelSearch() {
+            socket.emit("leaveQueue");
+            document.getElementById('matchmakingBtn').style.display = 'block';
+            document.getElementById('searchingState').style.display = 'none';
         }
 
-        /* ================= START MATCH ================= */
-        function startMatch(opponent, id, player1) {
-            isPlayer1 = player1;
-            opponentName = opponent;
-            matchId = id;
+        /* ================= MATCH FOUND ================= */
+        socket.on("matchFound", data => {
+            matchId = data.matchId;
+            isPlayer1 = data.isPlayer1;
+            opponentName = data.opponent;
 
-            if (player1) {
-                const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-                matches.push({ matchId, player1: currentUser, player2: opponent, score1: 0, score2: 0, time: 60, lastUpdate: Date.now() });
-                localStorage.setItem('activeMatches', JSON.stringify(matches));
-            }
-
-            const yourNameEl = document.getElementById('gameYourName');
-            const oppNameEl = document.getElementById('gameOppName');
-            if (yourNameEl) yourNameEl.textContent = currentUser;
-            if (oppNameEl) oppNameEl.textContent = opponent;
+            document.getElementById('gameYourName').textContent = currentUser;
+            document.getElementById('gameOppName').textContent = opponentName;
 
             showPage('gamePage');
             loadAds('game');
             startGame();
-        }
+        });
 
         /* ================= GAME ================= */
         function startGame() {
@@ -1169,62 +1142,59 @@
             gameOppScore.textContent = opponentScore;
             gameTimer.textContent = gameTime;
 
-            updateInterval = setInterval(syncMatch, 500);
-            gameInterval = setInterval(gameTick, 1000);
+            gameInterval = setInterval(() => {
+                gameTime--;
+                gameTimer.textContent = gameTime;
+                if (gameTime <= 0) endGame();
+            }, 1000);
 
-            // Game type-specific initialization
+            gameCanvas.innerHTML = '';
+
             if (currentGameType === 'target') spawnTarget();
             if (currentGameType === 'box') spawnBox();
-
-            gameCanvas.addEventListener('mousemove', movePlayer);
         }
 
-        function gameTick() {
-            const timerEl = document.getElementById('gameTimer');
-            gameTime--;
-            if (timerEl) timerEl.textContent = gameTime;
-            if (gameTime <= 0) endGame();
-        }
-
-        function movePlayer(e) {
-            const player = document.getElementById('playerChar');
-            const canvas = document.getElementById('gameCanvas');
-            if (!player || !canvas) return;
-
-            const rect = canvas.getBoundingClientRect();
-            player.style.left = e.clientX - rect.left - 25 + 'px';
-            player.style.top = e.clientY - rect.top - 25 + 'px';
-        }
-
+        /* ================= TARGET GAME ================= */
         function spawnTarget() {
             if (!gameActive) return;
-            const canvas = document.getElementById('gameCanvas');
-            if (!canvas) return;
 
             const t = document.createElement('div');
             t.className = 'target';
             t.textContent = '+1';
-            t.style.left = Math.random() * (canvas.clientWidth - 60) + 'px';
-            t.style.top = Math.random() * (canvas.clientHeight - 60) + 'px';
+
+            t.style.left = Math.random() * (gameCanvas.clientWidth - 60) + 'px';
+            t.style.top = Math.random() * (gameCanvas.clientHeight - 60) + 'px';
 
             t.onclick = () => {
                 score++;
-                const scoreEl = document.getElementById('gameYourScore');
-                if (scoreEl) scoreEl.textContent = score;
+                gameYourScore.textContent = score;
+
+                socket.emit("scoreUpdate", {
+                    matchId,
+                    score,
+                    time: gameTime
+                });
+
                 t.remove();
                 spawnTarget();
             };
 
-            canvas.appendChild(t);
-            setTimeout(() => t.remove(), 2500);
+            gameCanvas.appendChild(t);
+
+            setTimeout(() => {
+                if (t.parentNode) {
+                    t.remove();
+                    spawnTarget();
+                }
+            }, 2000);
         }
 
         /* ================= BOX GAME ================= */
         function spawnBox() {
             if (!gameActive) return;
+
             const box = document.createElement('div');
-            box.className = 'target'; // reuse styles
-            box.style.background = 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)';
+            box.className = 'target';
             box.textContent = '+1';
 
             box.style.left = Math.random() * (gameCanvas.clientWidth - 60) + 'px';
@@ -1233,59 +1203,63 @@
             box.onclick = () => {
                 score++;
                 gameYourScore.textContent = score;
+
+                socket.emit("scoreUpdate", {
+                    matchId,
+                    score,
+                    time: gameTime
+                });
+
                 box.remove();
-                spawnBox(); // spawn next box
+                spawnBox();
             };
 
             gameCanvas.appendChild(box);
             setTimeout(() => box.remove(), 2500);
         }
 
-        /* ================= SYNC MATCH ================= */
-        function syncMatch() {
-            const matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-            const match = matches.find(m => m.matchId === matchId);
-            if (!match) return;
+        /* ================= LIVE UPDATES ================= */
+        socket.on("matchUpdate", data => {
+            const myId = socket.id;
+            const oppId = Object.keys(data.scores).find(id => id !== myId);
 
-            if (isPlayer1) match.score1 = score;
-            else match.score2 = score;
-
-            match.time = gameTime;
-            match.lastUpdate = Date.now();
-
-            const oppScoreEl = document.getElementById('gameOppScore');
-            if (oppScoreEl) oppScoreEl.textContent = isPlayer1 ? match.score2 : match.score1;
-
-            localStorage.setItem('activeMatches', JSON.stringify(matches));
-        }
+            opponentScore = data.scores[oppId];
+            gameOppScore.textContent = opponentScore;
+            gameTimer.textContent = data.time;
+        });
 
         /* ================= END GAME ================= */
         function endGame() {
             gameActive = false;
             clearInterval(gameInterval);
-            clearInterval(updateInterval);
 
-            let matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
-            matches = matches.filter(m => m.matchId !== matchId);
-            localStorage.setItem('activeMatches', JSON.stringify(matches));
+            finalYourScore.textContent = score;
+            finalOppScore.textContent = opponentScore;
 
-            const yourScoreEl = document.getElementById('finalYourScore');
-            const oppScoreEl = document.getElementById('finalOppScore');
-            const winnerTextEl = document.getElementById('winnerText');
-            if (yourScoreEl) yourScoreEl.textContent = score;
-            if (oppScoreEl) oppScoreEl.textContent = opponentScore;
-            if (winnerTextEl) winnerTextEl.textContent = score > opponentScore ? 'You Win!' : score < opponentScore ? 'You Lose!' : 'Draw!';
+            winnerText.textContent =
+                score > opponentScore ? 'You Win!' :
+                    score < opponentScore ? 'You Lose!' : 'Draw!';
 
-            const overlay = document.getElementById('gameOverOverlay');
-            if (overlay) overlay.style.display = 'flex';
+            gameOverOverlay.style.display = 'flex';
         }
 
         function returnToLobby() {
-            const overlay = document.getElementById('gameOverOverlay');
-            if (overlay) overlay.style.display = 'none';
+            gameOverOverlay.style.display = 'none';
             showPage('lobbyPage');
         }
 
+        /* ================= QUIT ================= */
+        function quitGame() {
+            socket.emit("leaveMatch", { matchId });
+            clearInterval(gameInterval);
+            gameCanvas.innerHTML = '';
+            showPage('lobbyPage');
+        }
+
+        socket.on("matchEnded", () => {
+            alert("Match ended");
+            quitGame();
+        });
         /* ================= CLEAN DEAD MATCHES ================= */
         setInterval(() => {
             let matches = JSON.parse(localStorage.getItem('activeMatches') || '[]');
