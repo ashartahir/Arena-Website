@@ -8,7 +8,7 @@
     <style>
         * {
             margin: 0;
-            padding: 0;
+            padding: sc0;
             box-sizing: border-box;
         }
 
@@ -504,8 +504,13 @@
             </div>
         </div>
     </div>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io("http://localhost:3000"); 
+    </script>
 
     <script>
+
         // Check session
         const currentUser = localStorage.getItem('currentUser');
         const currentRole = localStorage.getItem('currentRole');
@@ -573,10 +578,7 @@
                 createdAt: new Date().toISOString()
             };
 
-            // Save to localStorage
-            const tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
-            tournaments.push(tournament);
-            localStorage.setItem('tournaments', JSON.stringify(tournaments));
+            socket.emit("createTournament", tournament);
 
             // Clear form
             document.getElementById('tournamentName').value = '';
@@ -769,21 +771,19 @@
         function deleteTournament(tournamentId) {
             if (!confirm('Are you sure you want to delete this tournament?')) return;
 
-            // Get tournaments from localStorage
-            let tournaments = JSON.parse(localStorage.getItem('tournaments') || '[]');
+            // 🔴 DO NOT touch localStorage here
+            // ✅ Ask server to delete it
+            socket.emit("deleteTournament", tournamentId);
+        }
+    </script>
+    <script>
+        const socket = io("http://localhost:3000");
 
-            // Remove the one with the given ID
-            tournaments = tournaments.filter(t => t.id !== tournamentId);
-
-            // Save updated list
-            localStorage.setItem('tournaments', JSON.stringify(tournaments));
-
-            // Reload tournaments list
+        socket.on("tournamentsUpdate", tournaments => {
+            localStorage.setItem("tournaments", JSON.stringify(tournaments));
             loadTournaments();
             updateStats();
-
-            alert('✅ Tournament deleted successfully!');
-        }
+        });
     </script>
 
 </body>
