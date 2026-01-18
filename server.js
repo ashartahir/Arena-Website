@@ -45,6 +45,9 @@ io.on("connection", (socket) => {
     tournaments = tournaments.filter(t => t.id !== tournamentId);
     io.emit("tournamentsUpdate", tournaments);
   });
+socket.on("connect", () => {
+    console.log("Socket connected:", socket.id);
+});
 
   socket.on("registerTournament", ({ tournamentId, username }) => {
     const t = tournaments.find(t => t.id === tournamentId);
