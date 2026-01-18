@@ -937,7 +937,7 @@
         /* ================= SOCKET ================= */
         let socket;
         try {
-            socket = io();
+            socket = io('https://arena-website-production.up.railway.app');
         } catch (e) {
             console.error("Socket connection failed:", e);
         }
