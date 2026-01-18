@@ -8,6 +8,7 @@
   <link data-optimized="2" rel="stylesheet"
     href="https://arena.im/wp-content/litespeed/css/cc331e70e638407d237255ba85654d5f.css?ver=47724" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' https: blob:;">
   <title>Arena</title>
   <meta name="description"
     content="Bring your audience from social media to your website or app with the power of AI. Build and monetize your community with Arena&#039;s Community-Building platform." />
@@ -581,7 +582,9 @@
       </div>
     </div>
   </div>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"
+    integrity="sha384-+OKzHNqKMrtkA+8wOChn1c6qvH2oPjv+W5vPR8c3C+N0PSaKX1y7ZPpXPt5v+7Dj"
+    crossorigin="anonymous"></script>
   <script>
     const socket = io('https://arena-website-production.up.railway.app'); 
   </script>
